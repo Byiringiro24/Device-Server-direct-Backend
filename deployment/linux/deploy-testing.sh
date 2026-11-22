@@ -7,6 +7,7 @@ TESTING_PORT=5501
 STAGING_PORT=5600
 FRONTEND_PORT=4174
 TESTING_API=https://testing-api.ecareafrica.net/api/v1
+STAGING_API=https://staging.ecareafrica.net/api/v1
 PM2_TESTING_BACKEND=ecare-testing-backend
 PM2_STAGING_BACKEND=ecare-staging-backend
 PM2_FRONTEND=ecare-testing-frontend
@@ -136,6 +137,8 @@ else
   (cd "$STAGE_DIR/frontend" && npm install --no-audit --no-fund)
 fi
 (cd "$STAGE_DIR/frontend" && VITE_API_BASE_URL="$TESTING_API" npm run build)
+(cd "$STAGE_DIR/frontend" && VITE_API_BASE_URL="$STAGING_API" npm run build -- --outDir dist-staging)
+[[ -f "$STAGE_DIR/frontend/dist-staging/index.html" ]] || { echo 'Staging frontend build did not produce dist-staging/index.html.' >&2; exit 1; }
 
 echo '[4/6] Applying database migrations after backup...'
 for app in "$PM2_TESTING_BACKEND" "$PM2_STAGING_BACKEND" "$PM2_FRONTEND"; do
