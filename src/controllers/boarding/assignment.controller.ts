@@ -79,11 +79,15 @@ export const listBoardingStudentsForAssignment = async (
   req: Request,
   res: Response,
 ) => {
-  const role = hasEffectiveRole(req, "patron")
-    ? "patron"
-    : hasEffectiveRole(req, "matron")
-      ? "matron"
-      : req.user?.role;
+  const assignedRoles = [
+    req.user?.role,
+    ...(Array.isArray(req.user?.secondary_roles) ? req.user.secondary_roles : []),
+  ].filter((role): role is string => typeof role === "string");
+  const requestedRole = String(req.header("x-active-role") ?? "").trim().toLowerCase();
+  const activeRole = requestedRole && assignedRoles.includes(requestedRole)
+    ? requestedRole
+    : req.user?.role;
+  const role = activeRole;
   const data = await assignmentService.listBoardingStudentsForAssignment(
     resolveSchoolId(req),
     role,

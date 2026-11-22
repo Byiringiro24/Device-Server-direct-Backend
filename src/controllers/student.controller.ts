@@ -5,12 +5,23 @@ import { AppError } from "../middleware/errorHandler";
 import * as studentService from "../services/student.service";
 import { Gender } from "@prisma/client";
 import { getAssignedDormitoryIds } from "../services/boarding/supervisor.service";
-import { hasEffectiveRole } from "../middleware/roleGuard";
 
 const boardingSupervisorScope = async (req: Request) => {
-  if (!hasEffectiveRole(req, "patron", "matron")) return {};
+  const effectiveRoles = [
+    req.user?.role,
+    ...(Array.isArray(req.user?.secondary_roles) ? req.user.secondary_roles : []),
+  ].filter((role): role is string => typeof role === "string");
+  const requestedRole = String(req.header("x-active-role") ?? "").trim().toLowerCase();
+  // Multi-role accounts retain all of their assigned permissions, but student
+  // roster scoping must follow the workspace the user selected. Otherwise a
+  // teacher who is also a patron/matron would see only the dormitory/gender
+  // slice while marking classroom attendance.
+  const activeRole = requestedRole && effectiveRoles.includes(requestedRole)
+    ? requestedRole
+    : req.user?.role;
+  if (activeRole !== "patron" && activeRole !== "matron") return {};
 
-  const boardingRole = hasEffectiveRole(req, "patron") ? "patron" : "matron";
+  const boardingRole = activeRole;
 
   return {
     dormitory_ids: await getAssignedDormitoryIds(req.user!.school_id!, req.user!.id),

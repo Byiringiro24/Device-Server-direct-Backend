@@ -543,6 +543,10 @@ export const assignRole = async (
       throw new AppError("not_found", "Role not found", 404);
     }
 
+    if (role.slug.trim().toLowerCase() === user.role.trim().toLowerCase()) {
+      throw new AppError("conflict", "User already has this role as their primary role", 409);
+    }
+
     const existing = await tx.user_roles.findFirst({
       where: {
         user_id: user.id,
