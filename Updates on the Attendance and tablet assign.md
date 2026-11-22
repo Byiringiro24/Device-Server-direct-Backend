@@ -1,3 +1,4 @@
+<!-- Historical implementation notes for the retired tablet bridge workflow. Current direct FK WAN architecture is documented in deployment/linux/README.md. -->
 # Updates on the Attendance and Tablet Assignment
 
 > **Historical reference only:** this document describes the retired tablet bridge architecture. FK terminals now connect in WAN mode to the FK Device-Server; follow `deployment/linux/README.md` for current setup.

@@ -17,12 +17,9 @@ const platformDeviceSchema = {
     school_id: z.union([z.string().regex(/^\d+$/), z.number()]),
     device_uid: z.string().min(1).max(100),
     name: z.string().min(1).max(100),
-    type: z.enum(["tablet", "kiosk", "web"]).optional(),
+    type: z.enum(["kiosk", "web"]).optional(),
     location: z.string().max(100).optional(),
     mode: z.enum(["gate", "boarding", "classroom"]).optional(),
-    tablet_ip: z.string().max(50).optional(),
-    tablet_port: z.number().int().min(1).max(65535).optional(),
-    tablet_id: z.union([z.string().regex(/^\d+$/), z.number()]).nullable().optional(),
     license_number: z.number().int().optional(),
     device_serial: z.string().max(100).optional(),
     product_code: z.string().max(50).optional(),
@@ -73,10 +70,18 @@ hardwareRoutes.patch(
   }),
   asyncWrapper(fkWanDeviceController.renameDevice)
 );
+hardwareRoutes.patch(
+  "/direct-devices/:deviceUid/capacity",
+  validate({
+    params: z.object({ deviceUid: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) }),
+    body: z.object({ device_capacity: z.number().int().positive().max(1_000_000).nullable() }),
+  }),
+  asyncWrapper(fkWanDeviceController.updateDeviceCapacity)
+);
 
 hardwareRoutes.get("/devices", asyncWrapper(hardwareController.listDevices));
 hardwareRoutes.post("/devices", validate(platformDeviceSchema), asyncWrapper(hardwareController.createDevice));
 hardwareRoutes.patch("/devices/:id", validate(platformDeviceUpdateSchema), asyncWrapper(hardwareController.updateDevice));
 hardwareRoutes.delete("/devices/:id", validate({ params: idParamSchema }), asyncWrapper(hardwareController.deleteDevice));
 
-// FK WAN terminals connect directly; no tablet bridge or WireGuard peer is used.
+// FK WAN terminals connect directly; no intermediary is used.

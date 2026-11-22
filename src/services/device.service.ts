@@ -228,9 +228,9 @@ const isWithinRange = (minutes: number, start: number, end: number) => {
   return minutes >= start || minutes <= end;
 };
 
-/** Format status from the direct WAN registry only; never probe a tablet/IP. */
+/** Format status from the direct WAN registry only; never probe a local network address. */
 const formatDeviceWithStatus = async (record: devices) => {
-  const { pin_hash: _pinHash, tablet_ip: _tabletIp, tablet_port: _tabletPort, tablet_id: _tabletId, ...rest } = record;
+  const { pin_hash: _pinHash, ...rest } = record;
   const direct = await prisma.fk_wan_devices.findUnique({
     where: { device_uid: record.device_uid },
     select: { is_online: true, last_seen_at: true, assigned_name: true, device_name: true }
@@ -565,7 +565,23 @@ export const pushStudentsToDevice = async (
       where: { id: device.id },
       data: { last_sync_at: new Date(), last_sync_status: "syncing", last_sync_error: null, last_status_message: `Pushing ${students.length} student(s) over FK WAN...` },
     });
-    const pushed: Array<{ id: string; user_id: string; name: string }> = [];
+    const biometricSourceByUser = new Map<string, string>();
+    const sourceDevices = await prisma.fk_wan_devices.findMany({
+      where: { school_id: toBigInt(schoolId) },
+      select: { device_uid: true },
+    });
+    const cachedUsers = await Promise.all(sourceDevices.map(async source => {
+      try { return { deviceUid: source.device_uid, users: await fkWanDeviceService.getDeviceUsers(source.device_uid) }; }
+      catch { return { deviceUid: source.device_uid, users: [] }; }
+    }));
+    for (const source of cachedUsers) {
+      for (const user of source.users) {
+        if (user.biometricMethods?.length && !biometricSourceByUser.has(user.userId)) {
+          biometricSourceByUser.set(user.userId, source.deviceUid);
+        }
+      }
+    }
+    const pushed: Array<{ id: string; user_id: string; name: string; biometric_methods: string[] }> = [];
     const failed: Array<{ id: string; user_id: string; name: string; error: string }> = [];
     for (const student of studentsWithDeviceUserIds) {
       const userId = student.device_user_id;
@@ -575,8 +591,9 @@ export const pushStudentsToDevice = async (
         continue;
       }
       try {
-        await fkWanDeviceService.setDeviceUser(device.device_uid, userId, name);
-        pushed.push({ id: student.id.toString(), user_id: userId, name });
+        const sourceDeviceUid = biometricSourceByUser.get(userId);
+        const result = await fkWanDeviceService.setDeviceUser(device.device_uid, userId, name, sourceDeviceUid);
+        pushed.push({ id: student.id.toString(), user_id: userId, name, biometric_methods: result.biometricMethods });
         await prisma.students.update({ where: { id: student.id }, data: { device_sync_status: "synced", last_device_sync: new Date() } });
       } catch (error) {
         failed.push({ id: student.id.toString(), user_id: userId, name, error: error instanceof Error ? error.message : "FK WAN command failed" });
@@ -744,7 +761,7 @@ export const getAllDeviceStatuses = async (schoolId: string | number | bigint) =
 
 /**
  * Get live status from the FK Device-Server registry. Terminals are discovered
- * by their WAN polls; this endpoint never probes tablet or private-LAN IPs.
+ * by their WAN polls; this endpoint never probes private-LAN IPs.
  */
 export const getLiveDeviceStatuses = async (
   schoolId: string | number | bigint
@@ -777,6 +794,36 @@ export const getLiveDeviceStatuses = async (
       last_seen_at: record.last_seen_at?.toISOString() ?? null,
     };
   }));
+};
+
+async function findAssignedDirectDevice(schoolId: string | number | bigint, id: string) {
+  if (!/^\d+$/.test(id)) throw new AppError("bad_request", "Invalid device id", 400);
+  const device = await prisma.devices.findFirst({ where: { id: toBigInt(id), school_id: toBigInt(schoolId) } });
+  if (!device) throw new AppError("not_found", "Device not found", 404);
+  const direct = await prisma.fk_wan_devices.findUnique({ where: { device_uid: device.device_uid } });
+  if (!direct || direct.school_id !== toBigInt(schoolId)) {
+    throw new AppError("forbidden", "Device is not assigned as a direct FK WAN device for this school", 403);
+  }
+  return { device, direct };
+}
+
+export const getDirectDeviceUsers = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  return fkWanDeviceService.getDeviceUsers(device.device_uid);
+};
+
+export const refreshDirectDeviceUsers = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const queued = await fkWanDeviceService.queueFullUserPull(device.device_uid);
+  await prisma.fk_wan_devices.update({ where: { device_uid: device.device_uid }, data: { last_users_pull_at: new Date() } });
+  return { device_uid: device.device_uid, ...queued };
+};
+
+export const refreshDirectDeviceLogs = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const queued = await fkWanDeviceService.queueFullAttendancePull(device.device_uid);
+  await prisma.fk_wan_devices.update({ where: { device_uid: device.device_uid }, data: { last_logs_pull_at: new Date() } });
+  return { device_uid: device.device_uid, ...queued };
 };
 
 export const getDeviceAttendanceConfig = async (schoolId: string | number | bigint, id: string) => {

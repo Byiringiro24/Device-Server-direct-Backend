@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 model subscription_plans {
@@ -118,32 +118,32 @@ model schools {
   students                         students[]
   subjects                         subjects[]
   support_tickets                  support_tickets[]
-  tablets                          tablets[]
-  teacher_section_subjects         teacher_section_subjects[]
-  terms                            terms[]
-  timetable_periods                timetable_periods[]
-  timetable_slots                  timetable_slots[]
-  user_roles                       user_roles[]
-  users                            users[]
-  visitor_appointments             visitor_appointments[]
-  visitor_visits                   visitor_visits[]
-  visitors                         visitors[]
-  boarding_attendance_windows      boarding_attendance_windows[]
-  boarding_attendance_sessions     boarding_attendance_sessions[]
-  boarding_attendance_records      boarding_attendance_records[]
-  boarding_configurations          boarding_configurations?
-  dos_work_items                   dos_work_items[]
-  dining_menus                     dining_menus[]
-  dining_menu_items                dining_menu_items[]
-  dining_schedules                 dining_schedules[]
-  dining_sessions                  dining_sessions[]
-  dining_attendance                dining_attendance[]
-  gate_exit_records                gate_exit_records[]
-  patron_dormitory_assignments     patron_dormitory_assignments[]
-  dining_teacher_assignments       dining_teacher_assignments[]
-  subject_combinations              subject_combinations[]
-  class_combinations                class_combinations[]
-  combination_subjects              combination_subjects[]
+
+  teacher_section_subjects     teacher_section_subjects[]
+  terms                        terms[]
+  timetable_periods            timetable_periods[]
+  timetable_slots              timetable_slots[]
+  user_roles                   user_roles[]
+  users                        users[]
+  visitor_appointments         visitor_appointments[]
+  visitor_visits               visitor_visits[]
+  visitors                     visitors[]
+  boarding_attendance_windows  boarding_attendance_windows[]
+  boarding_attendance_sessions boarding_attendance_sessions[]
+  boarding_attendance_records  boarding_attendance_records[]
+  boarding_configurations      boarding_configurations?
+  dos_work_items               dos_work_items[]
+  dining_menus                 dining_menus[]
+  dining_menu_items            dining_menu_items[]
+  dining_schedules             dining_schedules[]
+  dining_sessions              dining_sessions[]
+  dining_attendance            dining_attendance[]
+  gate_exit_records            gate_exit_records[]
+  patron_dormitory_assignments patron_dormitory_assignments[]
+  dining_teacher_assignments   dining_teacher_assignments[]
+  subject_combinations         subject_combinations[]
+  class_combinations           class_combinations[]
+  combination_subjects         combination_subjects[]
 
   @@index([status])
   @@index([country])
@@ -387,56 +387,57 @@ model demo_requests {
 }
 
 model users {
-  id                              BigInt                     @id @default(autoincrement())
-  uuid                            String                     @unique @db.Char(36)
+  id                              BigInt                         @id @default(autoincrement())
+  uuid                            String                         @unique @db.Char(36)
   school_id                       BigInt
-  name                            String                     @db.VarChar(255)
-  email                           String?                    @db.VarChar(255)
-  phone                           String?                    @db.VarChar(20)
-  password_hash                   String                     @db.VarChar(255)
+  name                            String                         @db.VarChar(255)
+  email                           String?                        @db.VarChar(255)
+  phone                           String?                        @db.VarChar(20)
+  password_hash                   String                         @db.VarChar(255)
   role                            UserRole
-  status                          UserStatus                 @default(pending)
-  avatar_url                      String?                    @db.VarChar(500)
-  last_login_at                   DateTime?                  @db.Timestamptz(3)
-  email_verified                  Boolean                    @default(false)
-  created_at                      DateTime                   @default(now()) @db.Timestamptz(3)
-  updated_at                      DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
-  deleted_at                      DateTime?                  @db.Timestamptz(3)
-  resolved_absence_alerts              absence_alerts[]
-  attendance_records                   attendance_records[]
-  attendance_sessions                  attendance_sessions[]
-  exams                                exams[]
-  published_exams                      exams[]                          @relation("exam_publisher")
-  prepared_report_cards                report_cards[]                   @relation("report_card_preparer")
-  approved_expenses                    expenses[]                       @relation("expense_approver")
-  created_expenses                     expenses[]                       @relation("expense_creator")
-  approved_payroll_runs                payroll_runs[]                   @relation("payroll_run_approver")
-  fee_transactions                     fee_transactions[]
-  parents_guardians                    parents_guardians[]
-  class_teacher_sections               sections[]
-  sessions                             sessions[]
-  staff_profiles                       staff_profiles[]
-  approved_student_leave_requests      student_leave_requests[]         @relation("leave_approved_by")
-  created_student_leave_requests       student_leave_requests[]         @relation("leave_created_by")
-  gatekeeper_leave_requests            student_leave_requests[]         @relation("leave_gate_keeper")
-  students                             students[]
-  teacher_section_subjects             teacher_section_subjects[]
-  timetable_slots                      timetable_slots[]
-  user_roles                           user_roles[]
-  school                               schools                          @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  visitor_appointments                 visitor_appointments[]
-  visitor_visits                       visitor_visits[]
-  patron_dormitory_assignments         patron_dormitory_assignments[]   @relation("patron_assignments")
-  patron_assignments_made              patron_dormitory_assignments[]   @relation("patron_assigned_by")
-  device_assignments_made              devices[]                        @relation("device_assigned_by")
-  confirmed_gate_exits                 gate_exit_records[]              @relation("exit_gate_keeper")
-  boarding_att_windows_created         boarding_attendance_windows[]    @relation("att_window_created_by")
-  boarding_att_records_corrected       boarding_attendance_records[]    @relation("att_corrected_by")
-  dining_menus_created                 dining_menus[]                   @relation("dining_menu_creator")
-  dining_schedules_created             dining_schedules[]               @relation("dining_sched_creator")
-  dining_sessions_marked               dining_sessions[]                @relation("dining_session_marker")
-  dining_attendance_marked             dining_attendance[]              @relation("dining_att_marker")
-  dining_teacher_assignments           dining_teacher_assignments[]
+  status                          UserStatus                     @default(pending)
+  avatar_url                      String?                        @db.VarChar(500)
+  last_login_at                   DateTime?                      @db.Timestamptz(3)
+  email_verified                  Boolean                        @default(false)
+  created_at                      DateTime                       @default(now()) @db.Timestamptz(3)
+  updated_at                      DateTime                       @default(now()) @updatedAt @db.Timestamptz(3)
+  deleted_at                      DateTime?                      @db.Timestamptz(3)
+  resolved_absence_alerts         absence_alerts[]
+  attendance_records              attendance_records[]
+  attendance_sessions             attendance_sessions[]
+  exams                           exams[]
+  published_exams                 exams[]                        @relation("exam_publisher")
+  prepared_report_cards           report_cards[]                 @relation("report_card_preparer")
+  approved_expenses               expenses[]                     @relation("expense_approver")
+  created_expenses                expenses[]                     @relation("expense_creator")
+  approved_payroll_runs           payroll_runs[]                 @relation("payroll_run_approver")
+  fee_transactions                fee_transactions[]
+  parents_guardians               parents_guardians[]
+  class_teacher_sections          sections[]
+  sessions                        sessions[]
+  staff_profiles                  staff_profiles[]
+  approved_student_leave_requests student_leave_requests[]       @relation("leave_approved_by")
+  created_student_leave_requests  student_leave_requests[]       @relation("leave_created_by")
+  gatekeeper_leave_requests       student_leave_requests[]       @relation("leave_gate_keeper")
+  students                        students[]
+  teacher_section_subjects        teacher_section_subjects[]
+  timetable_slots                 timetable_slots[]
+  user_roles                      user_roles[]
+  school                          schools                        @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  visitor_appointments            visitor_appointments[]
+  visitor_visits                  visitor_visits[]
+  patron_dormitory_assignments    patron_dormitory_assignments[] @relation("patron_assignments")
+  patron_assignments_made         patron_dormitory_assignments[] @relation("patron_assigned_by")
+  device_assignments_made         devices[]                      @relation("device_assigned_by")
+  confirmed_gate_exits            gate_exit_records[]            @relation("exit_gate_keeper")
+  boarding_att_windows_created    boarding_attendance_windows[]  @relation("att_window_created_by")
+  boarding_att_records_corrected  boarding_attendance_records[]  @relation("att_corrected_by")
+  dining_menus_created            dining_menus[]                 @relation("dining_menu_creator")
+  dining_schedules_created        dining_schedules[]             @relation("dining_sched_creator")
+  dining_sessions_marked          dining_sessions[]              @relation("dining_session_marker")
+  dining_attendance_marked        dining_attendance[]            @relation("dining_att_marker")
+  dining_teacher_assignments      dining_teacher_assignments[]
+  boarding_sessions_created       boarding_attendance_sessions[] @relation("boarding_session_creator")
 
   @@unique([school_id, email])
   @@index([school_id])
@@ -445,7 +446,6 @@ model users {
   @@index([last_login_at])
   @@index([created_at])
   @@index([updated_at])
-  boarding_sessions_created boarding_attendance_sessions[] @relation("boarding_session_creator")
   @@index([deleted_at])
 }
 
@@ -553,22 +553,22 @@ model terms {
 }
 
 model classes {
-  id               BigInt           @id @default(autoincrement())
-  school_id        BigInt
-  academic_year_id BigInt?
-  name             String           @db.VarChar(20)
-  level            Int              @db.SmallInt
-  description      String?          @db.VarChar(255)
-  created_at       DateTime         @default(now()) @db.Timestamptz(3)
-  deleted_at       DateTime?        @db.Timestamptz(3)
-  level_id         BigInt?
-  level_label      String?          @db.VarChar(100)
-  level_record     school_levels?   @relation(fields: [level_id], references: [id])
-  school           schools          @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  dining_schedules dining_schedules[]
-  dining_sessions  dining_sessions[]
-  fee_structures   fee_structures[]
-  sections         sections[]
+  id                 BigInt               @id @default(autoincrement())
+  school_id          BigInt
+  academic_year_id   BigInt?
+  name               String               @db.VarChar(20)
+  level              Int                  @db.SmallInt
+  description        String?              @db.VarChar(255)
+  created_at         DateTime             @default(now()) @db.Timestamptz(3)
+  deleted_at         DateTime?            @db.Timestamptz(3)
+  level_id           BigInt?
+  level_label        String?              @db.VarChar(100)
+  level_record       school_levels?       @relation(fields: [level_id], references: [id])
+  school             schools              @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  dining_schedules   dining_schedules[]
+  dining_sessions    dining_sessions[]
+  fee_structures     fee_structures[]
+  sections           sections[]
   class_combinations class_combinations[]
 
   @@unique([school_id, name, academic_year_id])
@@ -645,15 +645,15 @@ model subjects {
 }
 
 model subject_combinations {
-  id          BigInt       @id @default(autoincrement())
+  id          BigInt                 @id @default(autoincrement())
   school_id   BigInt
-  code        String       @db.VarChar(20)
-  name        String       @db.VarChar(100)
-  description String?      @db.VarChar(255)
-  is_active   Boolean      @default(true)
-  created_at  DateTime     @default(now()) @db.Timestamptz(3)
-  deleted_at  DateTime?    @db.Timestamptz(3)
-  school      schools      @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  code        String                 @db.VarChar(20)
+  name        String                 @db.VarChar(100)
+  description String?                @db.VarChar(255)
+  is_active   Boolean                @default(true)
+  created_at  DateTime               @default(now()) @db.Timestamptz(3)
+  deleted_at  DateTime?              @db.Timestamptz(3)
+  school      schools                @relation(fields: [school_id], references: [id], onDelete: Cascade)
   classes     class_combinations[]
   subjects    combination_subjects[]
 
@@ -663,13 +663,13 @@ model subject_combinations {
 }
 
 model class_combinations {
-  id             BigInt              @id @default(autoincrement())
+  id             BigInt               @id @default(autoincrement())
   school_id      BigInt
   class_id       BigInt
   combination_id BigInt
-  created_at     DateTime            @default(now()) @db.Timestamptz(3)
-  school         schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  class_record   classes             @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  created_at     DateTime             @default(now()) @db.Timestamptz(3)
+  school         schools              @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  class_record   classes              @relation(fields: [class_id], references: [id], onDelete: Cascade)
   combination    subject_combinations @relation(fields: [combination_id], references: [id], onDelete: Cascade)
 
   @@unique([class_id, combination_id])
@@ -678,14 +678,14 @@ model class_combinations {
 }
 
 model combination_subjects {
-  id             BigInt              @id @default(autoincrement())
+  id             BigInt               @id @default(autoincrement())
   school_id      BigInt
   combination_id BigInt
   subject_id     BigInt
-  created_at     DateTime            @default(now()) @db.Timestamptz(3)
-  school         schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  created_at     DateTime             @default(now()) @db.Timestamptz(3)
+  school         schools              @relation(fields: [school_id], references: [id], onDelete: Cascade)
   combination    subject_combinations @relation(fields: [combination_id], references: [id], onDelete: Cascade)
-  subject        subjects            @relation(fields: [subject_id], references: [id], onDelete: Cascade)
+  subject        subjects             @relation(fields: [subject_id], references: [id], onDelete: Cascade)
 
   @@unique([combination_id, subject_id])
   @@index([school_id])
@@ -915,35 +915,35 @@ model biometric_enrollments {
 }
 
 model staff_profiles {
-  id                     BigInt                 @id @default(autoincrement())
+  id                     BigInt                             @id @default(autoincrement())
   school_id              BigInt
   user_id                BigInt?
-  staff_id_number        String?                @db.VarChar(30)
+  staff_id_number        String?                            @db.VarChar(30)
   gender                 Gender?
-  department             String?                @db.VarChar(100)
+  department             String?                            @db.VarChar(100)
   contract_type          StaffContractType?
-  join_date              DateTime?              @db.Date
-  employment_status      EmploymentStatus       @default(active)
+  join_date              DateTime?                          @db.Date
+  employment_status      EmploymentStatus                   @default(active)
   subjects               Json?
-  created_at             DateTime               @default(now()) @db.Timestamptz(3)
-  updated_at             DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
-  deleted_at             DateTime?              @db.Timestamptz(3)
-  date_of_birth          DateTime?              @db.Date
-  national_id            String?                @db.VarChar(30)
+  created_at             DateTime                           @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime                           @default(now()) @updatedAt @db.Timestamptz(3)
+  deleted_at             DateTime?                          @db.Timestamptz(3)
+  date_of_birth          DateTime?                          @db.Date
+  national_id            String?                            @db.VarChar(30)
   address                String?
-  emergency_contact      String?                @db.VarChar(100)
-  qualifications         String?                @db.VarChar(255)
-  experience             String?                @db.VarChar(100)
-  timetable_access       String?                @db.VarChar(50)
-  basic_salary           Decimal?               @db.Decimal(12, 2)
+  emergency_contact      String?                            @db.VarChar(100)
+  qualifications         String?                            @db.VarChar(255)
+  experience             String?                            @db.VarChar(100)
+  timetable_access       String?                            @db.VarChar(50)
+  basic_salary           Decimal?                           @db.Decimal(12, 2)
   boarding_roll_calls    boarding_roll_calls[]
   supervised_dormitories dormitories[]
-  dormitory_assignments dormitory_supervisor_assignments[]
+  dormitory_assignments  dormitory_supervisor_assignments[]
   payslips               payslips[]
   salary_records         salary_records[]
   staff_leave_balances   staff_leave_balances[]
-  school                 schools                @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  user                   users?                 @relation(fields: [user_id], references: [id])
+  school                 schools                            @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  user                   users?                             @relation(fields: [user_id], references: [id])
 
   @@unique([school_id, staff_id_number])
   @@index([school_id])
@@ -1135,33 +1135,33 @@ model offline_sync_queue {
 }
 
 model dormitories {
-  id                           BigInt                         @id @default(autoincrement())
-  school_id                    BigInt
-  name                         String                         @db.VarChar(100)
-  gender                       DormGender                     @default(male)
-  capacity                     Int                            @default(60) @db.SmallInt
-  supervisor_id                BigInt?
-  description                  String?
-  hostel_name                  String?                        @db.VarChar(100)
-  block_name                   String?                        @db.VarChar(100)
-  building                     String?                        @db.VarChar(100)
-  floor                        Int                            @default(0) @db.SmallInt
-  is_active                    Boolean                        @default(true)
-  created_at                   DateTime                       @default(now()) @db.Timestamptz(3)
-  boarding_attendance_records  boarding_attendance_records[]
-  boarding_attendance_sessions boarding_attendance_sessions[]
-  boarding_attendance_windows  boarding_attendance_windows[]
-  boarding_roll_calls          boarding_roll_calls[]
-  absence_alerts               absence_alerts[]
-  devices                      devices[]
-  dining_schedules             dining_schedules[]
-  dining_sessions              dining_sessions[]
-  dorm_rooms                   dorm_rooms[]
+  id                               BigInt                             @id @default(autoincrement())
+  school_id                        BigInt
+  name                             String                             @db.VarChar(100)
+  gender                           DormGender                         @default(male)
+  capacity                         Int                                @default(60) @db.SmallInt
+  supervisor_id                    BigInt?
+  description                      String?
+  hostel_name                      String?                            @db.VarChar(100)
+  block_name                       String?                            @db.VarChar(100)
+  building                         String?                            @db.VarChar(100)
+  floor                            Int                                @default(0) @db.SmallInt
+  is_active                        Boolean                            @default(true)
+  created_at                       DateTime                           @default(now()) @db.Timestamptz(3)
+  boarding_attendance_records      boarding_attendance_records[]
+  boarding_attendance_sessions     boarding_attendance_sessions[]
+  boarding_attendance_windows      boarding_attendance_windows[]
+  boarding_roll_calls              boarding_roll_calls[]
+  absence_alerts                   absence_alerts[]
+  devices                          devices[]
+  dining_schedules                 dining_schedules[]
+  dining_sessions                  dining_sessions[]
+  dorm_rooms                       dorm_rooms[]
   dormitory_supervisor_assignments dormitory_supervisor_assignments[]
-  patron_dormitory_assignments patron_dormitory_assignments[]
-  school                       schools                        @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  supervisor                   staff_profiles?                @relation(fields: [supervisor_id], references: [id])
-  student_dorm_assignments     student_dorm_assignments[]
+  patron_dormitory_assignments     patron_dormitory_assignments[]
+  school                           schools                            @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  supervisor                       staff_profiles?                    @relation(fields: [supervisor_id], references: [id])
+  student_dorm_assignments         student_dorm_assignments[]
 
   @@index([school_id])
   @@index([is_active])
@@ -1271,51 +1271,51 @@ model boarding_roll_call_records {
 }
 
 model student_leave_requests {
-  id                    BigInt             @id @default(autoincrement())
-  school_id             BigInt
-  student_id            BigInt
-  requested_by          BigInt?
-  parent_id             BigInt?
-  leave_type            StudentLeaveType   @default(weekend)
-  leave_state           LeaveState         @default(requested)
-  leave_category        LeaveCategory      @default(short_leave)
-  start_date            DateTime           @db.Date
-  start_time            DateTime?          @db.Time
-  end_date              DateTime           @db.Date
-  expected_return_time  DateTime?          @db.Time
-  expected_return_at    DateTime?          @db.Timestamptz(3)
-  destination           String?            @db.VarChar(255)
-  reason                String?
-  parent_contact        String?
-  clarification_note    String?
-  source                StudentLeaveRequestSource?
-  medical_notes         String?
-  supporting_doc_url    String?            @db.VarChar(500)
-  requested_by_role     String?            @db.VarChar(50)
-  status                StudentLeaveStatus @default(pending)
-  approved_by           BigInt?
-  approved_at           DateTime?          @db.Timestamptz(3)
-  rejection_reason      String?
-  exited_at             DateTime?          @db.Timestamptz(3)
-  returned_at           DateTime?          @db.Timestamptz(3)
-  gate_keeper_id        BigInt?
-  late_return_flagged   Boolean            @default(false)
-  actual_duration_mins  Int?
+  id                     BigInt                     @id @default(autoincrement())
+  school_id              BigInt
+  student_id             BigInt
+  requested_by           BigInt?
+  parent_id              BigInt?
+  leave_type             StudentLeaveType           @default(weekend)
+  leave_state            LeaveState                 @default(requested)
+  leave_category         LeaveCategory              @default(short_leave)
+  start_date             DateTime                   @db.Date
+  start_time             DateTime?                  @db.Time
+  end_date               DateTime                   @db.Date
+  expected_return_time   DateTime?                  @db.Time
+  expected_return_at     DateTime?                  @db.Timestamptz(3)
+  destination            String?                    @db.VarChar(255)
+  reason                 String?
+  parent_contact         String?
+  clarification_note     String?
+  source                 StudentLeaveRequestSource?
+  medical_notes          String?
+  supporting_doc_url     String?                    @db.VarChar(500)
+  requested_by_role      String?                    @db.VarChar(50)
+  status                 StudentLeaveStatus         @default(pending)
+  approved_by            BigInt?
+  approved_at            DateTime?                  @db.Timestamptz(3)
+  rejection_reason       String?
+  exited_at              DateTime?                  @db.Timestamptz(3)
+  returned_at            DateTime?                  @db.Timestamptz(3)
+  gate_keeper_id         BigInt?
+  late_return_flagged    Boolean                    @default(false)
+  actual_duration_mins   Int?
   approved_duration_mins Int?
-  parent_notified_at    DateTime?          @db.Timestamptz(3)
-  patron_notified_at    DateTime?          @db.Timestamptz(3)
-  dod_notified_at       DateTime?          @db.Timestamptz(3)
-  is_unauthorized       Boolean            @default(false)
-  created_by            BigInt?
-  created_at            DateTime           @default(now()) @db.Timestamptz(3)
-  updated_at            DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
-  approved_by_user      users?             @relation("leave_approved_by", fields: [approved_by], references: [id])
-  created_by_user       users?             @relation("leave_created_by", fields: [created_by], references: [id])
-  gate_keeper           users?             @relation("leave_gate_keeper", fields: [gate_keeper_id], references: [id])
-  gate_exit_records     gate_exit_records[]
-  parent                parents_guardians? @relation(fields: [parent_id], references: [id])
-  school                schools            @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  student               students           @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  parent_notified_at     DateTime?                  @db.Timestamptz(3)
+  patron_notified_at     DateTime?                  @db.Timestamptz(3)
+  dod_notified_at        DateTime?                  @db.Timestamptz(3)
+  is_unauthorized        Boolean                    @default(false)
+  created_by             BigInt?
+  created_at             DateTime                   @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
+  approved_by_user       users?                     @relation("leave_approved_by", fields: [approved_by], references: [id])
+  created_by_user        users?                     @relation("leave_created_by", fields: [created_by], references: [id])
+  gate_keeper            users?                     @relation("leave_gate_keeper", fields: [gate_keeper_id], references: [id])
+  gate_exit_records      gate_exit_records[]
+  parent                 parents_guardians?         @relation(fields: [parent_id], references: [id])
+  school                 schools                    @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  student                students                   @relation(fields: [student_id], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([leave_state])
@@ -1333,27 +1333,27 @@ model student_leave_requests {
 }
 
 model absence_alerts {
-  id                   BigInt           @id @default(autoincrement())
-  school_id            BigInt
-  student_id           BigInt
-  dormitory_id         BigInt?
-  boarding_session_id  BigInt?
-  alert_type           AbsenceAlertType
-  severity             AlertSeverity    @default(medium)
-  status               AlertStatus      @default(active)
-  description          String?
-  resolved_by          BigInt?
-  resolved_at          DateTime?        @db.Timestamptz(3)
-  resolution_note      String?
-  escalation_sent_at   DateTime?        @db.Timestamptz(3)
-  parent_sms_sent_at   DateTime?        @db.Timestamptz(3)
-  patron_notified_at   DateTime?        @db.Timestamptz(3)
-  dod_notified_at      DateTime?        @db.Timestamptz(3)
-  created_at           DateTime         @default(now()) @db.Timestamptz(3)
-  dormitory            dormitories?     @relation(fields: [dormitory_id], references: [id])
-  resolved_by_user     users?           @relation(fields: [resolved_by], references: [id])
-  school               schools          @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  student              students         @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  id                  BigInt           @id @default(autoincrement())
+  school_id           BigInt
+  student_id          BigInt
+  dormitory_id        BigInt?
+  boarding_session_id BigInt?
+  alert_type          AbsenceAlertType
+  severity            AlertSeverity    @default(medium)
+  status              AlertStatus      @default(active)
+  description         String?
+  resolved_by         BigInt?
+  resolved_at         DateTime?        @db.Timestamptz(3)
+  resolution_note     String?
+  escalation_sent_at  DateTime?        @db.Timestamptz(3)
+  parent_sms_sent_at  DateTime?        @db.Timestamptz(3)
+  patron_notified_at  DateTime?        @db.Timestamptz(3)
+  dod_notified_at     DateTime?        @db.Timestamptz(3)
+  created_at          DateTime         @default(now()) @db.Timestamptz(3)
+  dormitory           dormitories?     @relation(fields: [dormitory_id], references: [id])
+  resolved_by_user    users?           @relation(fields: [resolved_by], references: [id])
+  school              schools          @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  student             students         @relation(fields: [student_id], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([student_id])
@@ -1620,33 +1620,33 @@ model exam_types {
 }
 
 model exam_modification_requests {
-  id          BigInt   @id @default(autoincrement())
+  id          BigInt                        @id @default(autoincrement())
   school_id   BigInt
   exam_id     BigInt
   teacher_id  BigInt
-  reason      String   @db.VarChar(1000)
+  reason      String                        @db.VarChar(1000)
   status      ExamModificationRequestStatus @default(pending)
   reviewed_by BigInt?
-  reviewed_at DateTime? @db.Timestamptz(3)
-  created_at  DateTime @default(now()) @db.Timestamptz(3)
-  updated_at  DateTime @updatedAt @db.Timestamptz(3)
+  reviewed_at DateTime?                     @db.Timestamptz(3)
+  created_at  DateTime                      @default(now()) @db.Timestamptz(3)
+  updated_at  DateTime                      @updatedAt @db.Timestamptz(3)
 
   @@index([school_id, status])
   @@index([exam_id])
 }
 
 model grading_roles {
-  id              BigInt   @id @default(autoincrement())
-  school_id       BigInt
-  code            String   @db.VarChar(20)
-  label           String   @db.VarChar(100)
-  min_percentage  Decimal  @db.Decimal(5, 2)
-  max_percentage  Decimal  @db.Decimal(5, 2)
-  is_active       Boolean  @default(true)
-  sort_order      Int      @default(0)
-  created_at      DateTime @default(now()) @db.Timestamptz(3)
-  updated_at      DateTime @updatedAt @db.Timestamptz(3)
-  school          schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  id             BigInt   @id @default(autoincrement())
+  school_id      BigInt
+  code           String   @db.VarChar(20)
+  label          String   @db.VarChar(100)
+  min_percentage Decimal  @db.Decimal(5, 2)
+  max_percentage Decimal  @db.Decimal(5, 2)
+  is_active      Boolean  @default(true)
+  sort_order     Int      @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz(3)
+  updated_at     DateTime @updatedAt @db.Timestamptz(3)
+  school         schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@unique([school_id, code])
   @@index([school_id])
@@ -1729,21 +1729,21 @@ model sms_providers {
 }
 
 model notification_templates {
-  id                BigInt              @id @default(autoincrement())
-  school_id         BigInt?
-  name              String              @db.VarChar(100)
-  slug              String              @db.VarChar(100)
-  trigger_type      String              @db.VarChar(50)
-  body_en           String
-  body_kin          String?
-  variables         Json?
-  is_active         Boolean             @default(true)
-  created_at        DateTime            @default(now()) @db.Timestamptz(3)
-  updated_at        DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
-  notification_logs notification_logs[]
+  id                      BigInt                    @id @default(autoincrement())
+  school_id               BigInt?
+  name                    String                    @db.VarChar(100)
+  slug                    String                    @db.VarChar(100)
+  trigger_type            String                    @db.VarChar(50)
+  body_en                 String
+  body_kin                String?
+  variables               Json?
+  is_active               Boolean                   @default(true)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime                  @default(now()) @updatedAt @db.Timestamptz(3)
+  notification_logs       notification_logs[]
   attendance_sms_mappings attendance_sms_mappings[]
-  school            schools?            @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  device_sessions   device_sessions[]
+  school                  schools?                  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  device_sessions         device_sessions[]
 
   @@unique([school_id, slug])
   @@index([school_id])
@@ -1753,16 +1753,16 @@ model notification_templates {
 }
 
 model attendance_sms_mappings {
-  id          BigInt   @id @default(autoincrement())
+  id          BigInt                  @id @default(autoincrement())
   school_id   BigInt
-  source_type String   @db.VarChar(50)
-  event_type  String   @db.VarChar(50)
-  scope_key   String   @default("global") @db.VarChar(100)
+  source_type String                  @db.VarChar(50)
+  event_type  String                  @db.VarChar(50)
+  scope_key   String                  @default("global") @db.VarChar(100)
   template_id BigInt?
-  send_sms    Boolean  @default(true)
-  created_at  DateTime @default(now()) @db.Timestamptz(3)
-  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  school      schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  send_sms    Boolean                 @default(true)
+  created_at  DateTime                @default(now()) @db.Timestamptz(3)
+  updated_at  DateTime                @default(now()) @updatedAt @db.Timestamptz(3)
+  school      schools                 @relation(fields: [school_id], references: [id], onDelete: Cascade)
   template    notification_templates? @relation(fields: [template_id], references: [id], onDelete: SetNull)
 
   @@unique([school_id, source_type, event_type, scope_key])
@@ -1876,52 +1876,47 @@ model system_settings {
 }
 
 model devices {
-  id                  BigInt            @id @default(autoincrement())
+  id                  BigInt              @id @default(autoincrement())
   school_id           BigInt
-  device_uid          String            @unique @db.VarChar(100)
-  name                String            @db.VarChar(100)
-  type                DeviceType        @default(tablet)
-  location            String?           @db.VarChar(100)
-  mode                DeviceMode        @default(gate)
-  pin_hash            String?           @db.VarChar(255)
-  is_active           Boolean           @default(true)
-  last_seen_at        DateTime?         @db.Timestamptz(3)
-  firmware_version    String?           @db.VarChar(20)
-  created_at          DateTime          @default(now()) @db.Timestamptz(3)
-  updated_at          DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
-  last_sync_status    String?           @db.VarChar(30)
+  device_uid          String              @unique @db.VarChar(100)
+  name                String              @db.VarChar(100)
+  type                DeviceType          @default(kiosk)
+  location            String?             @db.VarChar(100)
+  mode                DeviceMode          @default(gate)
+  pin_hash            String?             @db.VarChar(255)
+  is_active           Boolean             @default(true)
+  last_seen_at        DateTime?           @db.Timestamptz(3)
+  firmware_version    String?             @db.VarChar(20)
+  created_at          DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at          DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  last_sync_status    String?             @db.VarChar(30)
   last_sync_error     String?
   last_status_message String?
-  api_url             String?           @db.VarChar(255)
-  tablet_ip           String?           @db.VarChar(50)
-  tablet_port         Int?              @db.SmallInt
-  last_sync_at        DateTime?         @db.Timestamptz(3)
+  api_url             String?             @db.VarChar(255)
+  last_sync_at        DateTime?           @db.Timestamptz(3)
   attendance_config   Json?
   connection_error    String?
-  device_logs_count   Int?              @default(0)
-  device_serial       String?           @db.VarChar(100)
-  device_users_count  Int?              @default(0)
-  is_connected        Boolean           @default(false)
-  last_connection_at  DateTime?         @db.Timestamptz(3)
+  device_logs_count   Int?                @default(0)
+  device_serial       String?             @db.VarChar(100)
+  device_users_count  Int?                @default(0)
+  is_connected        Boolean             @default(false)
+  last_connection_at  DateTime?           @db.Timestamptz(3)
   license_number      Int?
-  product_code        String?           @db.VarChar(50)
-  product_name        String?           @db.VarChar(100)
-  tablet_id           BigInt?
+  product_code        String?             @db.VarChar(50)
+  product_name        String?             @db.VarChar(100)
   location_scope      DeviceLocationScope @default(gate)
   dormitory_id        BigInt?
-  location_label      String?           @db.VarChar(100)
+  location_label      String?             @db.VarChar(100)
   assigned_by         BigInt?
-  assigned_at         DateTime?         @db.Timestamptz(3)
+  assigned_at         DateTime?           @db.Timestamptz(3)
   device_sessions     device_sessions[]
-  school              schools           @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  tablet              tablets?          @relation(fields: [tablet_id], references: [id])
-  dormitory           dormitories?      @relation(fields: [dormitory_id], references: [id])
-  assigned_by_user    users?            @relation("device_assigned_by", fields: [assigned_by], references: [id])
+  school              schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  dormitory           dormitories?        @relation(fields: [dormitory_id], references: [id])
+  assigned_by_user    users?              @relation("device_assigned_by", fields: [assigned_by], references: [id])
 
   @@index([school_id])
   @@index([is_active])
   @@index([last_seen_at])
-  @@index([tablet_id])
   @@index([dormitory_id])
   @@index([location_scope])
   @@index([is_connected])
@@ -1933,22 +1928,30 @@ model devices {
 /// Auto-discovered FK WAN terminals. A terminal may remain unassigned until a
 /// platform admin chooses its school and gives it an app-facing label.
 model fk_wan_devices {
-  id                          BigInt          @id @default(autoincrement())
-  device_uid                  String          @unique @db.VarChar(100)
-  device_name                 String          @default("FK device") @db.VarChar(100)
-  assigned_name               String          @default("FK device") @db.VarChar(100)
-  school_id                   BigInt?
+  id                           BigInt          @id @default(autoincrement())
+  device_uid                   String          @unique @db.VarChar(100)
+  device_name                  String          @default("FK device") @db.VarChar(100)
+  assigned_name                String          @default("FK device") @db.VarChar(100)
+  school_id                    BigInt?
   assigned_by_platform_user_id BigInt?
-  remote_address              String?         @db.VarChar(100)
-  firmware_version            String?         @db.VarChar(100)
-  device_time                 String?         @db.VarChar(40)
-  device_info                 Json?
-  is_online                   Boolean         @default(false)
-  last_seen_at                DateTime?       @db.Timestamptz(3)
-  created_at                  DateTime        @default(now()) @db.Timestamptz(3)
-  updated_at                  DateTime        @updatedAt @db.Timestamptz(3)
-  school                      schools?        @relation(fields: [school_id], references: [id], onDelete: SetNull)
-  assigned_by                 platform_users? @relation(fields: [assigned_by_platform_user_id], references: [id], onDelete: SetNull)
+  remote_address               String?         @db.VarChar(100)
+  firmware_version             String?         @db.VarChar(100)
+  device_time                  String?         @db.VarChar(40)
+  device_info                  Json?
+  is_online                    Boolean         @default(false)
+  device_users_count           Int             @default(0)
+  biometric_templates_count    Int             @default(0)
+  device_capacity              Int?
+  capacity_source              String          @default("manual") @db.VarChar(20)
+  last_logs_pull_at            DateTime?       @db.Timestamptz(3)
+  last_attendance_received_at  DateTime?       @db.Timestamptz(3)
+  last_users_pull_at           DateTime?       @db.Timestamptz(3)
+  last_biometric_backup_at     DateTime?       @db.Timestamptz(3)
+  last_seen_at                 DateTime?       @db.Timestamptz(3)
+  created_at                   DateTime        @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime        @updatedAt @db.Timestamptz(3)
+  school                       schools?        @relation(fields: [school_id], references: [id], onDelete: SetNull)
+  assigned_by                  platform_users? @relation(fields: [assigned_by_platform_user_id], references: [id], onDelete: SetNull)
 
   @@index([school_id])
   @@index([is_online])
@@ -1997,38 +2000,6 @@ model attendance_windows {
 
   @@index([session_id])
   @@index([created_at])
-}
-
-model tablets {
-  id                    BigInt       @id @default(autoincrement())
-  school_id             BigInt
-  uuid                  String       @unique @default(uuid()) @db.Uuid
-  name                  String       @db.VarChar(100)
-  ip                    String       @db.VarChar(50)
-  port                  Int          @default(5000) @db.SmallInt
-  url                   String       @db.VarChar(255)
-  status                TabletStatus @default(offline)
-  last_health_check     DateTime?    @db.Timestamptz(3)
-  health_check_interval Int          @default(60) @db.SmallInt
-  firmware_version      String?      @db.VarChar(50)
-  os_info               String?      @db.VarChar(100)
-  location              String?      @db.VarChar(100)
-  is_active             Boolean      @default(true)
-  notes                 String?
-  dev_password          String?      @db.VarChar(100)
-  dev_password_set_at   DateTime?    @db.Timestamptz(3)
-  created_at            DateTime     @default(now()) @db.Timestamptz(3)
-  updated_at            DateTime     @default(now()) @updatedAt @db.Timestamptz(3)
-  deleted_at            DateTime?    @db.Timestamptz(3)
-  devices               devices[]
-  school                schools      @relation(fields: [school_id], references: [id], onDelete: Cascade)
-
-  @@index([school_id])
-  @@index([status])
-  @@index([is_active])
-  @@index([last_health_check])
-  @@index([created_at])
-  @@index([deleted_at])
 }
 
 model expenses {
@@ -2108,28 +2079,28 @@ model suppliers {
 }
 
 model inventory_items {
-  id            BigInt     @id @default(autoincrement())
-  school_id     BigInt
-  code          String     @db.VarChar(30)
-  item_name     String     @db.VarChar(255)
-  category      String?    @db.VarChar(100)
-  supplier_id   BigInt?
-  quantity      Int        @default(0)
-  unit_cost     Decimal    @db.Decimal(12, 2)
-  currency      String     @default("RWF") @db.Char(3)
-  reorder_level Int        @default(0)
-  status        POStatus   @default(requested)
-  invoice_url   String?    @db.VarChar(500)
-  notes         String?
-  amount_paid   Decimal  @default(0) @db.Decimal(12, 2)
-  paid_at       DateTime?
+  id             BigInt         @id @default(autoincrement())
+  school_id      BigInt
+  code           String         @db.VarChar(30)
+  item_name      String         @db.VarChar(255)
+  category       String?        @db.VarChar(100)
+  supplier_id    BigInt?
+  quantity       Int            @default(0)
+  unit_cost      Decimal        @db.Decimal(12, 2)
+  currency       String         @default("RWF") @db.Char(3)
+  reorder_level  Int            @default(0)
+  status         POStatus       @default(requested)
+  invoice_url    String?        @db.VarChar(500)
+  notes          String?
+  amount_paid    Decimal        @default(0) @db.Decimal(12, 2)
+  paid_at        DateTime?
   payment_method PaymentMethod?
-  created_by    BigInt?
-  created_at    DateTime   @default(now()) @db.Timestamptz(3)
-  updated_at    DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
-  deleted_at    DateTime?  @db.Timestamptz(3)
-  school        schools    @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  supplier      suppliers? @relation(fields: [supplier_id], references: [id])
+  created_by     BigInt?
+  created_at     DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at     DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  deleted_at     DateTime?      @db.Timestamptz(3)
+  school         schools        @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  supplier       suppliers?     @relation(fields: [supplier_id], references: [id])
 
   @@unique([school_id, code])
   @@index([school_id])
@@ -2709,7 +2680,6 @@ enum SystemSettingType {
 }
 
 enum DeviceType {
-  tablet
   kiosk
   web
 }
@@ -2718,13 +2688,6 @@ enum DeviceMode {
   gate
   boarding
   classroom
-}
-
-enum TabletStatus {
-  online
-  offline
-  error
-  maintenance
 }
 
 // â”€â”€ New enums â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2845,23 +2808,23 @@ model gate_exit_records {
 }
 
 model boarding_attendance_windows {
-  id               BigInt                     @id @default(autoincrement())
-  school_id        BigInt
-  dormitory_id     BigInt?
-  name             String                     @db.VarChar(100)
-  start_time       DateTime                   @db.Time
-  end_time         DateTime                   @db.Time
-  grace_minutes    Int                        @default(0) @db.SmallInt
-  escalation_mins  Int                        @default(60) @db.SmallInt
-  is_active        Boolean                    @default(true)
-  applicable_days  String                     @default("mon,tue,wed,thu,fri,sat,sun") @db.VarChar(30)
-  created_by       BigInt?
-  created_at       DateTime                   @default(now()) @db.Timestamptz(3)
-  updated_at       DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
-  sessions         boarding_attendance_sessions[]
-  created_by_user  users?                     @relation("att_window_created_by", fields: [created_by], references: [id])
-  dormitory        dormitories?               @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
-  school           schools                    @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  id              BigInt                         @id @default(autoincrement())
+  school_id       BigInt
+  dormitory_id    BigInt?
+  name            String                         @db.VarChar(100)
+  start_time      DateTime                       @db.Time
+  end_time        DateTime                       @db.Time
+  grace_minutes   Int                            @default(0) @db.SmallInt
+  escalation_mins Int                            @default(60) @db.SmallInt
+  is_active       Boolean                        @default(true)
+  applicable_days String                         @default("mon,tue,wed,thu,fri,sat,sun") @db.VarChar(30)
+  created_by      BigInt?
+  created_at      DateTime                       @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime                       @default(now()) @updatedAt @db.Timestamptz(3)
+  sessions        boarding_attendance_sessions[]
+  created_by_user users?                         @relation("att_window_created_by", fields: [created_by], references: [id])
+  dormitory       dormitories?                   @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
+  school          schools                        @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@index([school_id])
   @@index([dormitory_id])
@@ -2869,29 +2832,30 @@ model boarding_attendance_windows {
 }
 
 model boarding_attendance_sessions {
-  id              BigInt                       @id @default(autoincrement())
-  school_id       BigInt
-  window_id       BigInt?
-  dormitory_id    BigInt?
-  session_name    String?                      @db.VarChar(150)
-  location_type   String                       @default("dormitory") @db.VarChar(50)
-  created_by      BigInt?
-  session_date    DateTime                     @db.Date
-  window_start    DateTime?                    @db.Timestamptz(3)
-  window_end      DateTime?                    @db.Timestamptz(3)
-  reconciled_at   DateTime?                    @db.Timestamptz(3)
-  total_expected  Int                          @default(0)
-  total_present   Int                          @default(0)
-  total_late      Int                          @default(0)
-  total_on_leave  Int                          @default(0)
-  total_missing   Int                          @default(0)
-  notes           String?
-  created_at      DateTime                     @default(now()) @db.Timestamptz(3)
-  records         boarding_attendance_records[]
-  dormitory       dormitories?                 @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
-  school          schools                      @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  window          boarding_attendance_windows? @relation(fields: [window_id], references: [id], onDelete: SetNull)
-  creator         users?                       @relation("boarding_session_creator", fields: [created_by], references: [id], onDelete: SetNull)
+  id             BigInt                        @id @default(autoincrement())
+  school_id      BigInt
+  window_id      BigInt?
+  dormitory_id   BigInt?
+  session_name   String?                       @db.VarChar(150)
+  location_type  String                        @default("dormitory") @db.VarChar(50)
+  created_by     BigInt?
+  session_date   DateTime                      @db.Date
+  window_start   DateTime?                     @db.Timestamptz(3)
+  window_end     DateTime?                     @db.Timestamptz(3)
+  reconciled_at  DateTime?                     @db.Timestamptz(3)
+  total_expected Int                           @default(0)
+  total_present  Int                           @default(0)
+  total_late     Int                           @default(0)
+  total_on_leave Int                           @default(0)
+  total_missing  Int                           @default(0)
+  notes          String?
+  created_at     DateTime                      @default(now()) @db.Timestamptz(3)
+  records        boarding_attendance_records[]
+  dormitory      dormitories?                  @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
+  school         schools                       @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  window         boarding_attendance_windows?  @relation(fields: [window_id], references: [id], onDelete: SetNull)
+  creator        users?                        @relation("boarding_session_creator", fields: [created_by], references: [id], onDelete: SetNull)
+
   @@index([school_id])
   @@index([dormitory_id])
   @@index([session_date])
@@ -2901,29 +2865,29 @@ model boarding_attendance_sessions {
 }
 
 model boarding_attendance_records {
-  id                  BigInt                    @id @default(autoincrement())
-  school_id           BigInt
-  session_id          BigInt
-  student_id          BigInt
-  dormitory_id        BigInt?
-  status              BoardingAttendanceStatus  @default(missing_attendance)
-  scan_time           DateTime?                 @db.Timestamptz(3)
-  biometric_log_id    BigInt?
-  is_manual           Boolean                   @default(false)
-  manual_reason       String?
-  corrected_by        BigInt?
-  corrected_at        DateTime?                 @db.Timestamptz(3)
-  original_status     BoardingAttendanceStatus?
-  parent_notified_at  DateTime?                 @db.Timestamptz(3)
-  escalated_at        DateTime?                 @db.Timestamptz(3)
-  notes               String?
-  created_at          DateTime                  @default(now()) @db.Timestamptz(3)
-  updated_at          DateTime                  @default(now()) @updatedAt @db.Timestamptz(3)
-  corrected_by_user   users?                    @relation("att_corrected_by", fields: [corrected_by], references: [id])
-  dormitory           dormitories?              @relation(fields: [dormitory_id], references: [id])
-  school              schools                   @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  session             boarding_attendance_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  student             students                  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  id                 BigInt                       @id @default(autoincrement())
+  school_id          BigInt
+  session_id         BigInt
+  student_id         BigInt
+  dormitory_id       BigInt?
+  status             BoardingAttendanceStatus     @default(missing_attendance)
+  scan_time          DateTime?                    @db.Timestamptz(3)
+  biometric_log_id   BigInt?
+  is_manual          Boolean                      @default(false)
+  manual_reason      String?
+  corrected_by       BigInt?
+  corrected_at       DateTime?                    @db.Timestamptz(3)
+  original_status    BoardingAttendanceStatus?
+  parent_notified_at DateTime?                    @db.Timestamptz(3)
+  escalated_at       DateTime?                    @db.Timestamptz(3)
+  notes              String?
+  created_at         DateTime                     @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
+  corrected_by_user  users?                       @relation("att_corrected_by", fields: [corrected_by], references: [id])
+  dormitory          dormitories?                 @relation(fields: [dormitory_id], references: [id])
+  school             schools                      @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  session            boarding_attendance_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  student            students                     @relation(fields: [student_id], references: [id], onDelete: Cascade)
 
   @@unique([session_id, student_id])
   @@index([school_id])
@@ -2936,39 +2900,39 @@ model boarding_attendance_records {
 }
 
 model boarding_configurations {
-  id                          BigInt   @id @default(autoincrement())
-  school_id                   BigInt   @unique
-  require_student_photo       Boolean  @default(true)
-  require_biometric_return    Boolean  @default(true)
-  require_gate_exit_confirm   Boolean  @default(true)
-  parent_escalation_mins      Int      @default(60) @db.SmallInt
-  late_return_threshold_mins  Int      @default(15) @db.SmallInt
-  max_short_leave_hours       Int      @default(8) @db.SmallInt
-  max_long_leave_days         Int      @default(14) @db.SmallInt
-  sms_on_leave_approval       Boolean  @default(true)
-  sms_on_long_leave           Boolean  @default(true)
-  sms_on_medical_leave        Boolean  @default(true)
-  sms_on_missing_attendance   Boolean  @default(true)
-  sms_on_late_return          Boolean  @default(true)
-  created_at                  DateTime @default(now()) @db.Timestamptz(3)
-  updated_at                  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  school                      schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  id                         BigInt   @id @default(autoincrement())
+  school_id                  BigInt   @unique
+  require_student_photo      Boolean  @default(true)
+  require_biometric_return   Boolean  @default(true)
+  require_gate_exit_confirm  Boolean  @default(true)
+  parent_escalation_mins     Int      @default(60) @db.SmallInt
+  late_return_threshold_mins Int      @default(15) @db.SmallInt
+  max_short_leave_hours      Int      @default(8) @db.SmallInt
+  max_long_leave_days        Int      @default(14) @db.SmallInt
+  sms_on_leave_approval      Boolean  @default(true)
+  sms_on_long_leave          Boolean  @default(true)
+  sms_on_medical_leave       Boolean  @default(true)
+  sms_on_missing_attendance  Boolean  @default(true)
+  sms_on_late_return         Boolean  @default(true)
+  created_at                 DateTime @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  school                     schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
 }
 
 model dining_menus {
-  id         BigInt             @id @default(autoincrement())
+  id         BigInt              @id @default(autoincrement())
   school_id  BigInt
-  name       String             @db.VarChar(100)
-  menu_type  String             @default("weekly") @db.VarChar(20)
-  start_date DateTime?          @db.Date
-  end_date   DateTime?          @db.Date
-  is_active  Boolean            @default(true)
+  name       String              @db.VarChar(100)
+  menu_type  String              @default("weekly") @db.VarChar(20)
+  start_date DateTime?           @db.Date
+  end_date   DateTime?           @db.Date
+  is_active  Boolean             @default(true)
   created_by BigInt?
-  created_at DateTime           @default(now()) @db.Timestamptz(3)
-  updated_at DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
+  created_at DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
   items      dining_menu_items[]
-  creator    users?             @relation("dining_menu_creator", fields: [created_by], references: [id])
-  school     schools            @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  creator    users?              @relation("dining_menu_creator", fields: [created_by], references: [id])
+  school     schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@index([school_id])
   @@index([is_active])
@@ -2993,26 +2957,26 @@ model dining_menu_items {
 }
 
 model dining_schedules {
-  id               BigInt              @id @default(autoincrement())
-  school_id        BigInt
-  scope            DiningScheduleScope @default(dormitory)
-  dormitory_id     BigInt?
-  room_id          BigInt?
-  class_id         BigInt?
-  meal_type        DiningMealType
-  start_time       DateTime            @db.Time
-  end_time         DateTime            @db.Time
-  applicable_days  String              @default("mon,tue,wed,thu,fri,sat,sun") @db.VarChar(30)
-  is_active        Boolean             @default(true)
-  created_by       BigInt?
-  created_at       DateTime            @default(now()) @db.Timestamptz(3)
-  updated_at       DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
-  sessions         dining_sessions[]
-  class            classes?            @relation(fields: [class_id], references: [id])
-  created_by_user  users?              @relation("dining_sched_creator", fields: [created_by], references: [id])
-  dormitory        dormitories?        @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
-  room             dorm_rooms?         @relation(fields: [room_id], references: [id], onDelete: Cascade)
-  school           schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  id              BigInt              @id @default(autoincrement())
+  school_id       BigInt
+  scope           DiningScheduleScope @default(dormitory)
+  dormitory_id    BigInt?
+  room_id         BigInt?
+  class_id        BigInt?
+  meal_type       DiningMealType
+  start_time      DateTime            @db.Time
+  end_time        DateTime            @db.Time
+  applicable_days String              @default("mon,tue,wed,thu,fri,sat,sun") @db.VarChar(30)
+  is_active       Boolean             @default(true)
+  created_by      BigInt?
+  created_at      DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  sessions        dining_sessions[]
+  class           classes?            @relation(fields: [class_id], references: [id])
+  created_by_user users?              @relation("dining_sched_creator", fields: [created_by], references: [id])
+  dormitory       dormitories?        @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
+  room            dorm_rooms?         @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  school          schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@index([school_id])
   @@index([dormitory_id])
@@ -3021,25 +2985,25 @@ model dining_schedules {
 }
 
 model dining_sessions {
-  id           BigInt             @id @default(autoincrement())
+  id           BigInt              @id @default(autoincrement())
   school_id    BigInt
   schedule_id  BigInt?
   dormitory_id BigInt?
   class_id     BigInt?
   gender_group String?             @db.VarChar(20)
   meal_type    DiningMealType
-  session_date DateTime           @db.Date
-  opened_at    DateTime?          @db.Timestamptz(3)
-  closed_at    DateTime?          @db.Timestamptz(3)
+  session_date DateTime            @db.Date
+  opened_at    DateTime?           @db.Timestamptz(3)
+  closed_at    DateTime?           @db.Timestamptz(3)
   marked_by    BigInt?
   notes        String?
-  created_at   DateTime           @default(now()) @db.Timestamptz(3)
+  created_at   DateTime            @default(now()) @db.Timestamptz(3)
   attendance   dining_attendance[]
-  dormitory    dormitories?       @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
-  class        classes?           @relation(fields: [class_id], references: [id])
-  marker       users?             @relation("dining_session_marker", fields: [marked_by], references: [id])
-  schedule     dining_schedules?  @relation(fields: [schedule_id], references: [id], onDelete: SetNull)
-  school       schools            @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  dormitory    dormitories?        @relation(fields: [dormitory_id], references: [id], onDelete: Cascade)
+  class        classes?            @relation(fields: [class_id], references: [id])
+  marker       users?              @relation("dining_session_marker", fields: [marked_by], references: [id])
+  schedule     dining_schedules?   @relation(fields: [schedule_id], references: [id], onDelete: SetNull)
+  school       schools             @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@index([school_id])
   @@index([dormitory_id])
@@ -3061,9 +3025,9 @@ model dining_teacher_assignments {
   school       schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
   teacher      users    @relation(fields: [teacher_id], references: [id], onDelete: Cascade)
 
+  @@unique([school_id, teacher_id, gender_group, start_date, end_date])
   @@index([school_id, start_date, end_date])
   @@index([teacher_id, start_date, end_date])
-  @@unique([school_id, teacher_id, gender_group, start_date, end_date])
 }
 
 model dining_attendance {
@@ -3092,19 +3056,19 @@ model dining_attendance {
 /// DOS-owned academic workflow records. `payload` stores the type-specific
 /// fields so new DOS workflows do not alter School Admin domain tables.
 model dos_work_items {
-  id          BigInt   @id @default(autoincrement())
-  school_id   BigInt
-  type        String   @db.VarChar(50)
-  title       String   @db.VarChar(255)
-  status      String   @default("open") @db.VarChar(30)
-  priority    String   @default("normal") @db.VarChar(20)
-  student_id  BigInt?
-  payload     Json
-  created_by  BigInt?
-  updated_by  BigInt?
-  created_at  DateTime @default(now()) @db.Timestamptz(3)
-  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  school      schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  id         BigInt   @id @default(autoincrement())
+  school_id  BigInt
+  type       String   @db.VarChar(50)
+  title      String   @db.VarChar(255)
+  status     String   @default("open") @db.VarChar(30)
+  priority   String   @default("normal") @db.VarChar(20)
+  student_id BigInt?
+  payload    Json
+  created_by BigInt?
+  updated_by BigInt?
+  created_at DateTime @default(now()) @db.Timestamptz(3)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  school     schools  @relation(fields: [school_id], references: [id], onDelete: Cascade)
 
   @@index([school_id, type])
   @@index([school_id, status])

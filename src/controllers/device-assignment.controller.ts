@@ -45,7 +45,7 @@ export const getAssignedStudents = async (req: Request, res: Response) => {
 
 /**
  * POST /devices/:id/push-group
- * Push a specific student group to the tablet linked to this device.
+ * Push a specific student group to this directly connected FK terminal.
  * Body: { group: 1 } (1-indexed)
  */
 export const pushStudentGroup = async (req: Request, res: Response) => {

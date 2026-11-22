@@ -373,7 +373,6 @@ export const SystemSettingType = {
 } as const;
 
 export const DeviceType = {
-  TABLET: "tablet",
   KIOSK: "kiosk",
   WEB: "web",
 } as const;

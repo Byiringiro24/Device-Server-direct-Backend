@@ -42,3 +42,13 @@ curl -fsS http://127.0.0.1:5600/api/v1/health
 ```
 
 Use the Super Admin **Direct WAN Devices** page to confirm automatic discovery, rename terminals, and assign each one to a school. A terminal appears online only after it has polled the Device-Server within the configured online window.
+
+## Automatic device sync and backups
+
+- The singleton FK WAN job refreshes device connection state every `FK_DEVICE_SYNC_INTERVAL_MS` (15 seconds by default). Super Admin and school device pages refresh on the same cadence.
+- Each assigned online terminal receives a complete historical `GET_LOG_DATA` pull once per local calendar day, queued just after midnight in `FK_SYNC_TIMEZONE` (defaults to `Africa/Kampala`). Realtime scans continue to sync between full pulls.
+- Attendance is read from the Device-Server in pages and upserted by a stable event hash. Re-fetching historical logs does not create duplicate attendance rows. Existing attendance and session tables remain the application records of record.
+- Assigned online terminals receive a `GET_USER_ID_LIST` plus `GET_ALL_USER_INFO` refresh weekly. That firmware reports user names and fingerprint/face/etc. enrollments asynchronously; the Device-Server stores the returned templates.
+- After the refresh has had four hours to complete, the backend exports each device snapshot into `/var/lib/ecareafrica/device-biometric-backups/school-<id>-<name>/<device-id>/latest.json.enc`. Template data is AES-256-GCM encrypted using a key derived from `PLATFORM_JWT_SECRET`; files are mode `0600`, folders mode `0700`, and unchanged snapshots are not rewritten. Preserve the signing secret or these backups cannot be decrypted.
+- The observed FK firmware does not report an explicit storage capacity in `fk_info`. User and biometric counts sync from the Device-Server. Super Admin may set the terminal's capacity manually; a future positive capacity field reported by the terminal takes precedence automatically.
+- The school device page supports status, user/method listing, manual user and log pulls, student push, and recent attendance. Device polling remains required for queued commands to be delivered.

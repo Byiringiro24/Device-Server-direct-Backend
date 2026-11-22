@@ -8,7 +8,6 @@ import {
   normalizeDeviceStudentStatus
 } from "../src/services/device-assignment.service";
 import { resolveNextDeviceUserId } from "../src/services/student.service";
-import { buildDeviceUserId } from "../src/services/tablet.service";
 
 describe("buildDevicePushTarget", () => {
   it("keeps selected student ids for direct push", () => {
@@ -46,24 +45,6 @@ describe("resolveNextDeviceUserId", () => {
   it("ignores legacy 8-digit values derived from student numbers and keeps the next sequential device user ID valid", () => {
     expect(resolveNextDeviceUserId(["1028", "1029", "20260959"])).toBe("1030");
     expect(resolveNextDeviceUserId(["20260959", "20260960", "20260961"])).toBe("1000");
-  });
-});
-
-describe("buildDeviceUserId", () => {
-  it("keeps the stored device user id and ignores the student number mapping", () => {
-    expect(buildDeviceUserId({
-      id: 9n,
-      student_id_number: "STU-2026-001",
-      device_user_id: "2048"
-    })).toBe("2048");
-  });
-
-  it("falls back to a plain generated id instead of the student id number", () => {
-    expect(buildDeviceUserId({
-      id: 9n,
-      student_id_number: "STU-2026-001",
-      device_user_id: null
-    })).toBe("9");
   });
 });
 

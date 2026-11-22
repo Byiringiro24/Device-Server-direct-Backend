@@ -47,3 +47,11 @@ export async function renameDevice(req: Request, res: Response) {
   );
   res.json(successResponse(result));
 }
+
+export async function updateDeviceCapacity(req: Request, res: Response) {
+  const result = await fkWanDeviceService.setDeviceCapacity(
+    req.params.deviceUid,
+    req.body.device_capacity === null ? null : Number(req.body.device_capacity),
+  );
+  res.json(successResponse(result));
+}

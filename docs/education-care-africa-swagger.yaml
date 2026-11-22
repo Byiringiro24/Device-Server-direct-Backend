@@ -90,7 +90,7 @@ tags:
   - name: Visitors
     description: Visitor management and appointments
   - name: Devices
-    description: Registered tablets and kiosk devices
+    description: Registered direct terminal and kiosk devices
   - name: Staff
     description: Staff profiles and leave balances
   - name: Salary
@@ -2899,7 +2899,7 @@ paths:
           schema: { type: string, enum: [gate, boarding, classroom] }
         - name: type
           in: query
-          schema: { type: string, enum: [tablet, kiosk, web] }
+          schema: { type: string, enum: [kiosk, web] }
         - name: is_active
           in: query
           schema: { type: boolean }
@@ -2919,7 +2919,7 @@ paths:
               properties:
                 device_uid: { type: string }
                 name: { type: string }
-                type: { type: string, enum: [tablet, kiosk, web] }
+                type: { type: string, enum: [kiosk, web] }
                 location: { type: string }
                 mode: { type: string, enum: [gate, boarding, classroom] }
                 pin: { type: string }

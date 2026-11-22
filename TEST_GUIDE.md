@@ -1,3 +1,4 @@
+<!-- Historical guide: its tablet/VPN hardware sections describe the retired relay design. Current FK terminal operations use direct WAN communication; see deployment/linux/README.md and src/docs/device-management.md. -->
 # eCare System — Testers' Guide to Every Dashboard
 
 > **Purpose:** so a tester knows, page by page, **which forms to fill**, **which actions to try**, and **which tables/columns to verify**.

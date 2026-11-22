@@ -66,6 +66,21 @@ export const pushStudentsToDevice = async (req: Request, res: Response) => {
   res.status(200).json(successResponse(record));
 };
 
+export const getDirectDeviceUsers = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.getDirectDeviceUsers(schoolId, req.params.id)));
+};
+
+export const refreshDirectDeviceUsers = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.status(202).json(successResponse(await deviceService.refreshDirectDeviceUsers(schoolId, req.params.id)));
+};
+
+export const refreshDirectDeviceLogs = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.status(202).json(successResponse(await deviceService.refreshDirectDeviceLogs(schoolId, req.params.id)));
+};
+
 /**
  * POST /devices/:id/remove-students
  * Remove students (and their fingerprints) from the biometric device.

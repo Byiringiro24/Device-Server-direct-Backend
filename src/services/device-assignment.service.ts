@@ -129,7 +129,7 @@ export const getStudentsForDevice = async (
     where: { id: toBigInt(deviceId), school_id: toBigInt(schoolId) },
     include: {
       dormitory: { select: { id: true, name: true } },
-      tablet: { select: { id: true, name: true, ip: true } },
+
     },
   });
   if (!device) throw new AppError("not_found", "Device not found", 404);
@@ -233,7 +233,7 @@ export const getStudentsForDevice = async (
       location_scope: scope,
       location_label: device.location_label,
       dormitory: device.dormitory ? { ...device.dormitory, id: device.dormitory.id.toString() } : null,
-      tablet: device.tablet ? { ...device.tablet, id: device.tablet.id.toString() } : null,
+
     },
     total: students.length,
     deviceCapacity: DEVICE_CAPACITY,
@@ -352,7 +352,7 @@ const isSameDeviceStudentImageState = (
 /**
  * Builds the exact reconciliation plan for device-local student image sync.
  *
- * This is the backend-side logic that matches the intended tablet behavior:
+ * This is the backend-side logic that matches the intended direct-device behavior:
  * - keep unchanged students
  * - remove students no longer assigned to the device
  * - add newly assigned students

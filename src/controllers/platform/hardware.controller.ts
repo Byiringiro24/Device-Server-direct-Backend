@@ -58,7 +58,7 @@ export const updateDevice = async (req: Request, res: Response) => {
   // Pull out school_id so device.service doesn't choke on it
   const { school_id, ...restBody } = req.body as Record<string, unknown>;
 
-  // Apply standard field updates (tablet_id, name, mode, etc.) through the service
+  // Apply standard device field updates (name, mode, etc.) through the service
   const record = await deviceService.updateDevice(existing.school_id, req.params.id, restBody as any);
 
   // If school_id is being changed, apply it directly (bypasses ownership check)

@@ -1,3 +1,4 @@
+<!-- Historical generated API reference. Hardware examples may describe the retired tablet relay; current FK devices connect directly over WAN. See deployment/linux/README.md for the active architecture. -->
 # API_doc - Education Care Africa Backend
 
 ## Base URL and Docs

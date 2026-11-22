@@ -43,7 +43,7 @@ if (leader) {
   }
 
   // FK terminals connect directly to the WAN Device-Server. The app syncs its
-  // discovered registry and attendance feed without a tablet bridge or VPN.
+  // discovered registry and attendance feed using the direct WAN protocol.
   startFkWanDevicesJob();
 
   // Boarding reconciliation — auto-closes sessions at end of each attendance window

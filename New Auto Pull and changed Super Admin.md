@@ -1,3 +1,4 @@
+<!-- Historical implementation notes for the retired tablet/WireGuard relay. Current direct FK WAN architecture is documented in deployment/linux/README.md. -->
 # New Auto Pull and Changed Super Admin
 
 > **Historical reference only:** this document describes the retired tablet/WireGuard bridge design. The active FK terminal path is direct WAN to the FK Device-Server; follow `deployment/linux/README.md` for current setup.

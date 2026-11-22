@@ -558,7 +558,6 @@ interface DeviceLog {
   section?: string;
   club?: string;
   deviceId: string;
-  tabletId?: string;
   status: string;
   syncState: SyncState;
   sessionName?: string;
@@ -777,7 +776,6 @@ const formatDeviceLog = (log: AttendanceRecordLogRow): DeviceLog => ({
   section: log.session.section.full_name ?? log.session.section.name,
   club: undefined,
   deviceId: log.session.period?.name ?? log.session.section.full_name ?? log.session.section.name ?? "Attendance",
-  tabletId: undefined,
   status: normalizeStatus(log.status),
   syncState: "Synced",
   sessionName: log.session.period?.name ?? undefined,
@@ -981,7 +979,6 @@ interface DeviceLog {
   section?: string;
   club?: string;
   deviceId: string;
-  tabletId?: string;
   status: string;
   syncState: SyncState;
   sessionName?: string;
@@ -1088,7 +1085,6 @@ function enrichGateLog(
     section: enrollment?.section.name,
     club: undefined, // Not available in current schema
     deviceId: log.device_id ?? '',
-    tabletId: undefined, // Not directly available in gate_logs
     status: log.attendance_status ?? 'Present',
     syncState,
     sessionName: log.session_name ?? undefined,

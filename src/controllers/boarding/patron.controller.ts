@@ -105,7 +105,7 @@ export const listMyDevices = async (req: Request, res: Response) => {
       is_connected: true,
       last_seen_at: true,
       dormitory: { select: { id: true, name: true, block_name: true, hostel_name: true } },
-      tablet: { select: { id: true, name: true, ip: true } },
+
     },
   });
 
@@ -114,6 +114,6 @@ export const listMyDevices = async (req: Request, res: Response) => {
     id: d.id.toString(),
     dormitory_id: d.dormitory_id?.toString() ?? null,
     dormitory: d.dormitory ? { ...d.dormitory, id: d.dormitory.id.toString() } : null,
-    tablet: d.tablet ? { ...d.tablet, id: d.tablet.id.toString() } : null,
+
   }))));
 };

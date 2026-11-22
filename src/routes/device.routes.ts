@@ -216,6 +216,24 @@ deviceRoutes.post(
   asyncWrapper(deviceController.pushStudentsToDevice)
 );
 
+deviceRoutes.get(
+  "/:id/users",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.getDirectDeviceUsers)
+);
+
+deviceRoutes.post(
+  "/:id/users/pull",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.refreshDirectDeviceUsers)
+);
+
+deviceRoutes.post(
+  "/:id/logs/pull",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.refreshDirectDeviceLogs)
+);
+
 // DELETE students from device (removes fingerprints from FK623)
 // Body: { mode: "selected"|"class"|"all", student_ids?, class_id? }
 deviceRoutes.post(
@@ -303,7 +321,7 @@ deviceRoutes.get(
   asyncWrapper(deviceAssignmentController.getAssignedStudents)
 );
 
-// POST push a specific group to the tablet
+// POST push a specific group to the direct FK terminal
 deviceRoutes.post(
   "/:id/push-group",
   asyncWrapper(deviceAssignmentController.pushStudentGroup)

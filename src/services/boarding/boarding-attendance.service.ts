@@ -199,7 +199,7 @@ export const openBoardingAttendanceSession = async (
 
 /**
  * Record a biometric scan for a student within a boarding session.
- * Called from tablet.service.ts when a scan arrives.
+ * Called when a direct FK terminal attendance scan arrives.
  */
 export const recordBoardingAttendanceScan = async (
   schoolId: string | number | bigint,

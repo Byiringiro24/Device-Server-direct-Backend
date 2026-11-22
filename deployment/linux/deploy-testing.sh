@@ -125,6 +125,13 @@ chmod 600 "$STAGE_DIR/backend/.env"
 if ! grep -q '^FK_DEVICE_SERVER_URL=' "$STAGE_DIR/backend/.env"; then
   printf '\nFK_DEVICE_SERVER_URL=http://127.0.0.1:8005\n' >> "$STAGE_DIR/backend/.env"
 fi
+if ! grep -q '^FK_BIOMETRIC_BACKUP_DIR=' "$STAGE_DIR/backend/.env"; then
+  printf '\nFK_BIOMETRIC_BACKUP_DIR=/var/lib/ecareafrica/device-biometric-backups\n' >> "$STAGE_DIR/backend/.env"
+fi
+if ! grep -q '^FK_SYNC_TIMEZONE=' "$STAGE_DIR/backend/.env"; then
+  printf '\nFK_SYNC_TIMEZONE=Africa/Kampala\n' >> "$STAGE_DIR/backend/.env"
+fi
+install -d -m 0700 /var/lib/ecareafrica/device-biometric-backups
 [[ -f "$STAGE_DIR/backend/package.json" && -f "$STAGE_DIR/backend/src/server.ts" ]] || { echo 'Backend archive layout is invalid.' >&2; exit 1; }
 [[ -f "$STAGE_DIR/frontend/package.json" && -f "$STAGE_DIR/frontend/vite.config.ts" ]] || { echo 'Frontend archive layout is invalid.' >&2; exit 1; }
 

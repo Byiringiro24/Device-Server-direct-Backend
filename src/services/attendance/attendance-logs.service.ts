@@ -3,7 +3,7 @@
  *
  * Reads from the `attendance_logs` table — the dedicated store for
  * device-generated (biometric) scan events. Data is written here by
- * the auto-pull job (tablet.service.pullDeviceLogs) and by the manual
+ * the direct FK WAN attendance feed and by the manual
  * attendance event endpoint.
  *
  * This is the single source of truth for what the frontend device-logs
@@ -214,7 +214,7 @@ function buildWhere(
 /**
  * List attendance logs with filters and pagination.
  * Merges two sources:
- *  1. attendance_logs — populated by the tablet pull-logs job (device scans synced automatically)
+ *  1. attendance_logs — populated by the direct FK WAN feed (device scans synced automatically)
  *  2. attendance_records with device scan_methods — populated when records arrive via the
  *     school backend (fingerprint/face/card attendance stored directly in attendance_records)
  * This ensures the Device Attendance page shows data even before the pull-logs job has run.
