@@ -1,9 +1,82 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { prisma } from "../database/prisma";
+import { env } from "../configs/env";
 import { AppError } from "../middleware/errorHandler";
 
-const serverBase = (process.env.FK_DEVICE_SERVER_URL || "http://127.0.0.1:8005").replace(/\/$/, "");
-const serverToken = process.env.FK_DEVICE_SERVER_TOKEN?.trim();
+const serverBase = () => (process.env.FK_DEVICE_SERVER_URL || "http://127.0.0.1:8005").replace(/\/$/, "");
+const tokenSettingKey = "FK_DEVICE_SERVER_TOKEN_ENC";
 const requestTimeoutMs = Number(process.env.FK_DEVICE_SERVER_TIMEOUT_MS || 8000);
+
+function tokenEncryptionKey() {
+  return createHash("sha256").update(`ecareafrica:fk-device-server-token:v1:${env.PLATFORM_JWT_SECRET}`).digest();
+}
+
+function encryptServerToken(token: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", tokenEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  return `v1:${iv.toString("base64")}:${cipher.getAuthTag().toString("base64")}:${ciphertext.toString("base64")}`;
+}
+
+function decryptServerToken(value: string) {
+  const [version, ivText, tagText, ciphertextText] = value.split(":");
+  if (version !== "v1" || !ivText || !tagText || !ciphertextText) {
+    throw new AppError("internal_error", "Stored FK Device-Server credential cannot be read", 500);
+  }
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", tokenEncryptionKey(), Buffer.from(ivText, "base64"));
+    decipher.setAuthTag(Buffer.from(tagText, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(ciphertextText, "base64")), decipher.final()]).toString("utf8");
+  } catch {
+    throw new AppError("internal_error", "Stored FK Device-Server credential cannot be decrypted; re-enter it in Super Admin", 500);
+  }
+}
+
+async function findStoredServerToken() {
+  return prisma.system_settings.findFirst({ where: { school_id: null, key_name: tokenSettingKey } });
+}
+
+async function resolveServerToken() {
+  const setting = await findStoredServerToken();
+  if (setting?.value) return decryptServerToken(setting.value);
+  return process.env.FK_DEVICE_SERVER_TOKEN?.trim() || undefined;
+}
+
+export async function getServerCredentialStatus() {
+  const setting = await findStoredServerToken();
+  if (setting?.value) return { configured: true, source: "superadmin" as const };
+  if (process.env.FK_DEVICE_SERVER_TOKEN?.trim()) return { configured: true, source: "environment" as const };
+  return { configured: false, source: "none" as const };
+}
+
+export async function setServerToken(tokenInput: string, updatedBy: string) {
+  const token = tokenInput.trim();
+  if (token.length > 2048) throw new AppError("bad_request", "FK Device-Server token is too long", 400);
+  if (!/^\d+$/.test(updatedBy)) throw new AppError("unauthorized", "Invalid platform user context", 401);
+  const existing = await findStoredServerToken();
+  if (!token) {
+    if (existing) await prisma.system_settings.delete({ where: { id: existing.id } });
+    return getServerCredentialStatus();
+  }
+  const encrypted = encryptServerToken(token);
+  if (existing) {
+    await prisma.system_settings.update({
+      where: { id: existing.id },
+      data: { value: encrypted, updated_by: BigInt(updatedBy), updated_at: new Date() },
+    });
+  } else {
+    await prisma.system_settings.create({
+      data: {
+        school_id: null,
+        key_name: tokenSettingKey,
+        value: encrypted,
+        type: "string",
+        updated_by: BigInt(updatedBy),
+      },
+    });
+  }
+  return getServerCredentialStatus();
+}
 
 type WanDevice = {
   deviceId: string;
@@ -17,9 +90,10 @@ type WanDevice = {
 
 async function serverRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
+  const serverToken = await resolveServerToken();
   if (serverToken) headers.set("Authorization", `Bearer ${serverToken}`);
   try {
-    const response = await fetch(`${serverBase}${path}`, {
+    const response = await fetch(`${serverBase()}${path}`, {
       ...init,
       headers,
       signal: AbortSignal.timeout(requestTimeoutMs),
@@ -116,7 +190,7 @@ export async function assignDeviceToSchool(input: {
   if (!school) throw new AppError("not_found", "School not found", 404);
 
   const firmware = current.firmware_version?.slice(0, 20) || null;
-  const externalUrl = `${serverBase}/fk`;
+  const externalUrl = `${serverBase()}/fk`;
   const result = await prisma.$transaction(async (tx) => {
     const appDevice = await tx.devices.upsert({
       where: { device_uid: input.deviceUid },

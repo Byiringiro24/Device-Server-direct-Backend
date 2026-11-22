@@ -14,6 +14,7 @@
     "migrate:seed": "npm run prisma:migrate:deploy && npm run seed",
     "seed": "ts-node src/seeders/index.ts",
     "seed:plans": "ts-node src/seeders/plans.seeder.ts",
+    "platform-admin:provision": "ts-node src/scripts/provision-platform-admin.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:db:up": "docker-compose -f docker-compose.test.yml up -d",

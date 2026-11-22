@@ -8,6 +8,19 @@ export async function listDevices(_req: Request, res: Response) {
   res.json(successResponse(devices));
 }
 
+export async function getServerCredentialStatus(_req: Request, res: Response) {
+  res.json(successResponse(await fkWanDeviceService.getServerCredentialStatus()));
+}
+
+export async function updateServerCredential(req: Request, res: Response) {
+  const updatedBy = req.user?.id;
+  if (updatedBy === undefined || updatedBy === null) {
+    throw new AppError("unauthorized", "Missing platform user context", 401);
+  }
+  const result = await fkWanDeviceService.setServerToken(String(req.body.token ?? ""), String(updatedBy));
+  res.json(successResponse(result));
+}
+
 export async function assignDevice(req: Request, res: Response) {
   const assignedBy = req.user?.id;
   if (assignedBy === undefined || assignedBy === null) {

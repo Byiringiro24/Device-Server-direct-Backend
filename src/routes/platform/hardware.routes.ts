@@ -17,9 +17,12 @@ const platformDeviceSchema = {
     school_id: z.union([z.string().regex(/^\d+$/), z.number()]),
     device_uid: z.string().min(1).max(100),
     name: z.string().min(1).max(100),
-    type: z.enum(["kiosk", "web"]).optional(),
+    type: z.enum(["tablet", "kiosk", "web"]).optional(),
     location: z.string().max(100).optional(),
     mode: z.enum(["gate", "boarding", "classroom"]).optional(),
+    tablet_ip: z.string().max(50).optional(),
+    tablet_port: z.number().int().min(1).max(65535).optional(),
+    tablet_id: z.union([z.string().regex(/^\d+$/), z.number()]).nullable().optional(),
     license_number: z.number().int().optional(),
     device_serial: z.string().max(100).optional(),
     product_code: z.string().max(50).optional(),
@@ -51,6 +54,12 @@ const fkWanDeviceAssignmentSchema = {
 
 // Live FK terminals are discovered from device-initiated WAN polls.
 hardwareRoutes.get("/direct-devices", asyncWrapper(fkWanDeviceController.listDevices));
+hardwareRoutes.get("/direct-server-credentials", asyncWrapper(fkWanDeviceController.getServerCredentialStatus));
+hardwareRoutes.patch(
+  "/direct-server-credentials",
+  validate({ body: z.object({ token: z.string().max(2048) }) }),
+  asyncWrapper(fkWanDeviceController.updateServerCredential)
+);
 hardwareRoutes.patch(
   "/direct-devices/:deviceUid/assignment",
   validate(fkWanDeviceAssignmentSchema),
