@@ -154,6 +154,12 @@ mv "$FRONTEND_DIR" "$PREVIOUS_DIR/frontend"
 mv "$STAGE_DIR/backend" "$BACKEND_DIR"
 mv "$STAGE_DIR/frontend" "$FRONTEND_DIR"
 
+# The frontend stage directory is created with mode 0700 for staging safety.
+# Nginx serves the compiled SPA directly from dist-staging, so restore public
+# traversal/read access only on the frontend root and its compiled bundles.
+chmod 0755 "$FRONTEND_DIR"
+chmod -R a+rX "$FRONTEND_DIR/dist" "$FRONTEND_DIR/dist-staging"
+
 for app in "$PM2_TESTING_BACKEND" "$PM2_STAGING_BACKEND" "$PM2_FRONTEND"; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
