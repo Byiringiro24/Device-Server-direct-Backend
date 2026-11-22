@@ -129,7 +129,13 @@ fi
 
 echo '[3/6] Installing dependencies and building both applications...'
 (cd "$STAGE_DIR/backend" && npm ci && npm run prisma:generate && npm run build)
-(cd "$STAGE_DIR/frontend" && npm ci && VITE_API_BASE_URL="$TESTING_API" npm run build)
+if [[ -f "$STAGE_DIR/frontend/package-lock.json" || -f "$STAGE_DIR/frontend/npm-shrinkwrap.json" ]]; then
+  (cd "$STAGE_DIR/frontend" && npm ci)
+else
+  echo 'Frontend repository has no committed npm lockfile; installing from package.json.'
+  (cd "$STAGE_DIR/frontend" && npm install --no-audit --no-fund)
+fi
+(cd "$STAGE_DIR/frontend" && VITE_API_BASE_URL="$TESTING_API" npm run build)
 
 echo '[4/6] Applying database migrations after backup...'
 for app in "$PM2_TESTING_BACKEND" "$PM2_STAGING_BACKEND" "$PM2_FRONTEND"; do
