@@ -641,22 +641,6 @@ export const pushStudentsToDevice = async (
     throw new AppError("forbidden", "Direct FK device is not assigned to this school", 403);
   }
 
-  const apiUrl = resolveDeviceApiUrl(device);
-  if (!directDevice && !apiUrl) {
-    throw new AppError(
-      "bad_request",
-      "Device has no API URL or tablet connection configured. Set the tablet IP and port in device settings.",
-      400
-    );
-  }
-
-  // Do NOT pre-check reachability here — it blocks push if the tablet has a
-  // brief network hiccup or WireGuard reconnect in progress.
-  // withTabletOfflineRetry below waits up to 5 minutes for the bridge to come
-  // back, so transient unavailability is handled gracefully.
-  // (The old upfront check caused "Tablet bridge is offline or unreachable"
-  //  errors whenever the VPN had > 3s latency, even when the tablet was fine.)
-
   const target = buildDevicePushTarget(input);
   const where: Prisma.studentsWhereInput = {
     school_id: toBigInt(schoolId),
@@ -773,86 +757,7 @@ export const pushStudentsToDevice = async (
     return { device_id: device.id.toString(), device_uid: device.device_uid, target, api_url: process.env.FK_DEVICE_SERVER_URL || "http://127.0.0.1:8005", selected_count: studentsWithDeviceUserIds.length, pushed_count: pushed.length, failed_count: failed.length, students: pushed, errors: failed };
   }
 
-  await prisma.devices.update({
-    where: { id: device.id },
-    data: {
-      last_sync_at: new Date(),
-      last_sync_status: "syncing",
-      last_sync_error: null,
-      last_status_message: `Pushing ${students.length} student(s) to device...`
-    }
-  });
-
-  const tabletClient = new TabletClientService(apiUrl);
-  const pushed: Array<{ id: string; user_id: string; name: string }> = [];
-  const failed: Array<{ id: string; user_id: string; name: string; error: string }> = [];
-
-  for (const student of studentsWithDeviceUserIds) {
-    const userId = student.device_user_id;
-    if (!userId) {
-      failed.push({
-        id: student.id.toString(),
-        user_id: "",
-        name: `${student.first_name} ${student.last_name}`.trim(),
-        error: "Student has no device_user_id assigned"
-      });
-      continue;
-    }
-    const name = `${student.first_name} ${student.last_name}`.trim();
-
-    try {
-      const result = await withTabletOfflineRetry(
-        () => tabletClient.addUser(userId, name),
-        { timeoutMs: 5 * 60 * 1000, retryIntervalMs: 2000 }
-      );
-      if (result && (result as any).success === false) {
-        throw new Error((result as any).error || "Tablet rejected user");
-      }
-
-      pushed.push({ id: student.id.toString(), user_id: userId, name });
-      await prisma.students.update({
-        where: { id: student.id },
-        data: {
-          device_user_id: userId,
-          device_sync_status: "synced",
-          last_device_sync: new Date()
-        }
-      });
-    } catch (error) {
-      failed.push({
-        id: student.id.toString(),
-        user_id: userId,
-        name,
-        error: error instanceof Error ? error.message : "Unknown tablet error"
-      });
-
-      await prisma.students.update({
-        where: { id: student.id },
-        data: { device_user_id: userId, device_sync_status: "failed" }
-      });
-    }
-  }
-
-  await prisma.devices.update({
-    where: { id: device.id },
-    data: {
-      last_sync_at: new Date(),
-      last_sync_status: failed.length ? "partial" : "synced",
-      last_sync_error: failed.length ? `${failed.length} student(s) failed to push` : null,
-      last_status_message: `Pushed ${pushed.length}/${students.length} student(s) to device`
-    }
-  });
-
-  return {
-    device_id: device.id.toString(),
-    target,
-    api_url: apiUrl,
-    selected_count: studentsWithDeviceUserIds.length,
-    pushed_count: pushed.length,
-    failed_count: failed.length,
-    students: pushed,
-    errors: failed
-  };
+  throw new AppError("internal_error", "Direct FK WAN user push did not complete", 500);
 };
 
 /**
@@ -880,9 +785,6 @@ export const removeStudentsFromDevice = async (
   if (directDevice && directDevice.school_id !== toBigInt(schoolId)) {
     throw new AppError("forbidden", "Direct FK device is not assigned to this school", 403);
   }
-  const apiUrl = resolveDeviceApiUrl(device);
-  if (!directDevice && !apiUrl) throw new AppError("bad_request", "Device has no API URL or tablet connection configured", 400);
-
   const target = buildDevicePushTarget(input);
   const where: Prisma.studentsWhereInput = {
     school_id: toBigInt(schoolId),
@@ -943,55 +845,7 @@ export const removeStudentsFromDevice = async (
     return { device_id: device.id.toString(), device_uid: device.device_uid, target, api_url: process.env.FK_DEVICE_SERVER_URL || "http://127.0.0.1:8005", selected_count: students.length, removed_count: removed.length, failed_count: failed.length, students: removed, errors: failed };
   }
 
-  const tabletClient = new TabletClientService(apiUrl);
-  const removed: Array<{ id: string; user_id: string; name: string }> = [];
-  const failed: Array<{ id: string; user_id: string; name: string; error: string }> = [];
-
-  for (const student of students) {
-    const userId = student.device_user_id;
-    if (!userId) {
-      failed.push({
-        id: student.id.toString(),
-        user_id: "",
-        name: `${student.first_name} ${student.last_name}`.trim(),
-        error: "Student has no device_user_id assigned"
-      });
-      continue;
-    }
-    const name = `${student.first_name} ${student.last_name}`.trim();
-
-    try {
-      await tabletClient.deleteUser(userId);
-      removed.push({ id: student.id.toString(), user_id: userId, name });
-      // Clear sync status so student no longer shows as synced to any device
-      await prisma.students.update({
-        where: { id: student.id },
-        data: { device_sync_status: null, device_user_id: null, last_device_sync: new Date() }
-      });
-    } catch (error) {
-      failed.push({ id: student.id.toString(), user_id: userId, name, error: error instanceof Error ? error.message : "Unknown error" });
-    }
-  }
-
-  await prisma.devices.update({
-    where: { id: device.id },
-    data: {
-      last_sync_at: new Date(),
-      last_sync_status: failed.length ? "partial" : "synced",
-      last_status_message: `Removed ${removed.length}/${students.length} student(s) from device`
-    }
-  });
-
-  return {
-    device_id: device.id.toString(),
-    target,
-    api_url: apiUrl,
-    selected_count: students.length,
-    removed_count: removed.length,
-    failed_count: failed.length,
-    students: removed,
-    errors: failed
-  };
+  throw new AppError("internal_error", "Direct FK WAN user removal did not complete", 500);
 };
 
 export const getDeviceStatus = async (schoolId: string | number | bigint, id: string) => {
@@ -1046,130 +900,6 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
   }
 
   throw new AppError("not_found", "Device is not registered as a direct FK WAN terminal for this school", 404);
-
-  if (device.tablet_id) {
-    const tabletStatus = await tabletService.getDeviceStatus(device.tablet_id, schoolId);
-    const statusData = (tabletStatus as any)?.data ?? tabletStatus;
-    const updatedDevice = await prisma.devices.findFirst({
-      where: {
-        id: device.id,
-        school_id: toBigInt(schoolId)
-      },
-      include: {
-        tablet: { select: { id: true, url: true, ip: true, port: true, status: true, name: true } }
-      }
-    });
-
-    return {
-      ...(updatedDevice ? await formatDeviceWithStatus(updatedDevice, false) : await formatDeviceWithStatus(device, false)),
-      status: statusData?.connected ? "online" : "offline",
-      is_online: Boolean(statusData?.connected),
-      is_connected: Boolean(statusData?.connected),
-      device_status: statusData
-    };
-  }
-
-  // Check real-time tablet connectivity — fetch full /api/health for three-tier status
-  const bridgeUrl = resolveTabletBridgeUrl(device);
-
-  // Three-tier status:
-  //   tier 3 = full: bridge reachable + FK623 connected (fk623.connected = true)
-  //   tier 2 = bridge: bridge reachable + FK623 NOT connected (bridgeReady = false / fk623.connected = false)
-  //   tier 1 = offline: bridge not reachable
-  let isOnline = false;
-  let fk623Connected = false;
-  let bridgeReady = false;
-  let bridgeRunning = false;
-  let wireguardActive = false;
-  let healthData: any = null;
-
-  if (bridgeUrl) {
-    try {
-      const healthUrl = `${bridgeUrl.replace(/\/+$/, "")}/api/health`;
-      const response = await axios.get(healthUrl, { timeout: 10000, validateStatus: () => true });
-      if (response.status > 0) {
-        isOnline = true;
-        healthData = response.data ?? {};
-        fk623Connected = Boolean(healthData?.fk623?.connected ?? healthData?.connected ?? false);
-        bridgeReady = Boolean(healthData?.bridgeReady ?? healthData?.fk623?.connected ?? false);
-        bridgeRunning = Boolean(healthData?.bridgeRunning ?? healthData?.fk623?.connected ?? fk623Connected);
-        wireguardActive = Boolean(healthData?.vpn?.active ?? healthData?.wireguardActive ?? false);
-      }
-    } catch {
-      isOnline = false;
-    }
-  }
-
-  // Determine connection tier
-  // "full"   = FK623 device physically connected to the tablet bridge AND WireGuard reachable
-  // "bridge" = Tablet bridge reachable via WireGuard but FK623 not physically connected
-  // "offline"= Not reachable at all
-  const connectionTier: "full" | "bridge" | "offline" = !isOnline
-    ? "offline"
-    : fk623Connected
-      ? "full"
-      : "bridge";
-
-  const status = isOnline ? "online" : "offline";
-
-  const updated = await prisma.devices.update({
-    where: { id: device.id },
-    data: {
-      ...(isOnline ? { last_seen_at: new Date() } : {}),
-      ...(fk623Connected ? { is_connected: true, last_connection_at: new Date() } : {}),
-      last_status_message: !bridgeUrl
-        ? "Device has no linked tablet bridge configured"
-        : connectionTier === "full"
-          ? "FK623 connected — WireGuard active — ready to scan"
-          : connectionTier === "bridge"
-            ? "Tablet bridge reachable — FK623 device not physically connected"
-            : "Tablet bridge offline — check WireGuard VPN and tablet power"
-    }
-  });
-
-  // ── Also update the linked tablet's status so the sidebar shows correct state ──
-  // getDeviceStatus is called by "Check Status" button — it just pinged the tablet
-  // and got a live result. Persist that result to tablets.status so the sidebar
-  // list (which uses tablet.status) reflects reality immediately without waiting
-  // for the next pull-logs sweep.
-  if (device.tablet_id) {
-    await prisma.tablets.update({
-      where: { id: device.tablet_id },
-      data: {
-        status: isOnline ? 'online' : 'offline',
-        last_health_check: new Date(),
-        updated_at: new Date(),
-      },
-    }).catch(() => null); // non-fatal
-  }
-
-  return {
-    ...await formatDeviceWithStatus(updated, false),
-    status,
-    is_online: isOnline,
-    is_connected: fk623Connected,
-    connection_tier: connectionTier,
-    bridge_reachable: isOnline,
-    fk623_connected: fk623Connected,
-    bridge_ready: bridgeReady,
-    bridge_running: bridgeRunning,
-    wireguard_active: wireguardActive,
-    last_seen_at: updated.last_seen_at?.toISOString() ?? null,
-    device_status: healthData
-      ? {
-          connected: fk623Connected,
-          users: healthData?.fk623?.users ?? healthData?.device?.users ?? 0,
-          logs: healthData?.fk623?.logs ?? healthData?.device?.logs ?? 0,
-          fingerprints: healthData?.fk623?.fingerprints ?? 0,
-          faces: healthData?.fk623?.faces ?? 0,
-          cards: healthData?.fk623?.cards ?? 0,
-          serialNumber: healthData?.fk623?.serialNumber ?? healthData?.device?.serialNumber ?? null,
-          productName: healthData?.fk623?.productName ?? healthData?.device?.productName ?? null,
-          ipAddress: healthData?.fk623?.ipAddress ?? device.tablet_ip ?? null,
-          message: updated.last_status_message
-        }
-      : null
-  };
 };
 
 /**
