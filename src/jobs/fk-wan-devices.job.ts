@@ -5,7 +5,7 @@ import { normalizeLegacyAttendanceConfig, resolveDeviceAttendance, type DeviceAt
 import { sendAttendanceNotification, type AttendanceNotificationKind } from "../services/attendance/notification.service";
 import { logger } from "../utils/logger";
 
-const INTERVAL_MS = Math.max(5_000, Number(process.env.FK_DEVICE_SYNC_INTERVAL_MS || 15_000));
+const INTERVAL_MS = Math.max(5_000, Number(process.env.FK_DEVICE_SYNC_INTERVAL_MS || 5_000));
 const SYNC_TIMEZONE = process.env.FK_SYNC_TIMEZONE || process.env.TZ || "Africa/Kampala";
 const BIOMETRIC_BACKUP_AFTER_MS = 4 * 60 * 60 * 1000;
 const BACKUP_RETRY_MS = 6 * 60 * 60 * 1000;

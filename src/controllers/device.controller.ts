@@ -86,6 +86,11 @@ export const matchDirectDeviceUserToStudent = async (req: Request, res: Response
   res.json(successResponse(await deviceService.matchDirectDeviceUserToStudent(schoolId, req.params.id, req.body)));
 };
 
+export const matchDirectDeviceUsersByExactId = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.matchDirectDeviceUsersByExactId(schoolId, req.params.id)));
+};
+
 export const refreshDirectDeviceUsers = async (req: Request, res: Response) => {
   const schoolId = resolveSchoolId(req);
   res.status(202).json(successResponse(await deviceService.refreshDirectDeviceUsers(schoolId, req.params.id)));

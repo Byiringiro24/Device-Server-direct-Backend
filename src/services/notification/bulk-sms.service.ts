@@ -32,12 +32,14 @@ const resolveParents = async (
   schoolId: bigint,
   filter: BulkSmsFilter,
 ): Promise<ParentPhone[]> => {
-  const seenIds = new Set<bigint>();
+  const seenPhones = new Set<string>();
   const results: ParentPhone[] = [];
 
   const push = (p: { id: bigint; phone: string; first_name: string; last_name: string }) => {
-    if (!p.phone || seenIds.has(p.id)) return;
-    seenIds.add(p.id);
+    if (!p.phone) return;
+    const phoneKey = p.phone.replace(/\D/g, "");
+    if (!phoneKey || seenPhones.has(phoneKey)) return;
+    seenPhones.add(phoneKey);
     results.push({ id: p.id, phone: p.phone, name: `${p.first_name} ${p.last_name}`.trim() });
   };
 

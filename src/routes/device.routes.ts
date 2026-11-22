@@ -237,6 +237,12 @@ deviceRoutes.post(
 );
 
 deviceRoutes.post(
+  "/:id/users/match-exact",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.matchDirectDeviceUsersByExactId)
+);
+
+deviceRoutes.post(
   "/:id/users/delete",
   validate(directDeviceUsersDeleteSchema),
   asyncWrapper(deviceController.deleteDirectDeviceUsers)

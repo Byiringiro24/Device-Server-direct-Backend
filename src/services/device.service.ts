@@ -958,6 +958,61 @@ export const matchDirectDeviceUserToStudent = async (schoolId: string | number |
   });
 };
 
+/** Safely link device users to students only when their existing student number
+ * exactly matches the device ID. This updates the mapping column only; it never
+ * writes to the device or changes a biometric template/student number.
+ */
+export const matchDirectDeviceUsersByExactId = async (schoolId: string | number | bigint, id: string) => {
+  const school = toBigInt(schoolId);
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const [deviceUsers, students] = await Promise.all([
+    fkWanDeviceService.getDeviceUsers(device.device_uid),
+    prisma.students.findMany({
+      where: { school_id: school, deleted_at: null, status: "active" },
+      select: { id: true, student_id_number: true, device_user_id: true },
+    }),
+  ]);
+  const uniqueDeviceIds = [...new Set(deviceUsers.map(user => String(user.userId ?? "").trim()).filter(Boolean))];
+  const mappedByDeviceId = new Map<string, typeof students>();
+  const studentsByNumber = new Map<string, typeof students>();
+  for (const student of students) {
+    if (student.device_user_id) mappedByDeviceId.set(student.device_user_id, [...(mappedByDeviceId.get(student.device_user_id) ?? []), student]);
+    const number = String(student.student_id_number ?? "").trim();
+    if (number) studentsByNumber.set(number, [...(studentsByNumber.get(number) ?? []), student]);
+  }
+
+  let matched = 0;
+  let alreadyMatched = 0;
+  let needsReview = 0;
+  const matchedUserIds: string[] = [];
+  const reviewUserIds: string[] = [];
+  for (const userId of uniqueDeviceIds) {
+    const current = mappedByDeviceId.get(userId) ?? [];
+    if (current.length === 1) { alreadyMatched++; continue; }
+    if (current.length > 1) { needsReview++; reviewUserIds.push(userId); continue; }
+    const candidates = studentsByNumber.get(userId) ?? [];
+    if (candidates.length !== 1 || candidates[0].device_user_id !== null) {
+      needsReview++;
+      reviewUserIds.push(userId);
+      continue;
+    }
+    const student = candidates[0];
+    const result = await prisma.students.updateMany({
+      where: { id: student.id, school_id: school, deleted_at: null, status: "active", device_user_id: null },
+      data: { device_user_id: userId },
+    });
+    if (result.count === 1) {
+      matched++;
+      matchedUserIds.push(userId);
+      mappedByDeviceId.set(userId, [student]);
+    } else {
+      needsReview++;
+      reviewUserIds.push(userId);
+    }
+  }
+  return { deviceId: id, deviceUserCount: uniqueDeviceIds.length, matched, alreadyMatched, needsReview, matchedUserIds, reviewUserIds, studentNumbersChanged: false, biometricsChanged: false };
+};
+
 export const refreshDirectDeviceUsers = async (schoolId: string | number | bigint, id: string) => {
   const { device } = await findAssignedDirectDevice(schoolId, id);
   const queued = await fkWanDeviceService.queueFullUserPull(device.device_uid);
