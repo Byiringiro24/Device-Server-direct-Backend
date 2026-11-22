@@ -1,5 +1,7 @@
 # New Auto Pull and Changed Super Admin
 
+> **Historical reference only:** this document describes the retired tablet/WireGuard bridge design. The active FK terminal path is direct WAN to the FK Device-Server; follow `deployment/linux/README.md` for current setup.
+
 **Project:** Education Care Africa (Ecareafrica)
 **Date:** July 2026
 **Covers:** All changes made in this development session across backend and frontend

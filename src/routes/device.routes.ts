@@ -164,8 +164,7 @@ deviceRoutes.get(
   asyncWrapper(deviceController.listDeviceStatuses)
 );
 
-// REAL live status — pings every tablet bridge via WireGuard right now
-// Returns actual FK623 + WireGuard connection state, NOT from DB cache
+// Direct WAN status — refreshed from terminal polls at the FK Device-Server.
 deviceRoutes.get(
   "/live-status",
   asyncWrapper(deviceController.getLiveDeviceStatuses)

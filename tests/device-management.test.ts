@@ -1,8 +1,7 @@
 import {
   buildDevicePushTarget,
   isDeviceSyncInProgress,
-  resolveAttendanceStatusForTime,
-  resolveDeviceApiUrl
+  resolveAttendanceStatusForTime
 } from "../src/services/device.service";
 import {
   buildDeviceStudentImageSyncPlan,
@@ -75,22 +74,6 @@ describe("isDeviceSyncInProgress", () => {
     expect(isDeviceSyncInProgress("pending")).toBe(true);
     expect(isDeviceSyncInProgress("synced")).toBe(false);
     expect(isDeviceSyncInProgress(null)).toBe(false);
-  });
-});
-
-describe("resolveDeviceApiUrl", () => {
-  it("prefers the current linked tablet bridge URL over stale device.api_url records", () => {
-    expect(resolveDeviceApiUrl({
-      api_url: "http://10.0.0.12:5000/",
-      tablet: { url: "http://192.168.1.20:5000" }
-    } as any)).toBe("http://192.168.1.20:5000");
-  });
-
-  it("falls back to the saved device api_url when no linked tablet bridge exists", () => {
-    expect(resolveDeviceApiUrl({
-      api_url: "https://bridge.example.com/api",
-      tablet: null
-    } as any)).toBe("https://bridge.example.com/api");
   });
 });
 

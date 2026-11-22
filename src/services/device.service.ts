@@ -3,9 +3,6 @@ import type { PaginationParams } from "../helpers/pagination";
 import { prisma } from "../database/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { hashPassword } from "../utils/hash";
-import axios from "axios";
-import { TabletClientService } from "./tablet-client.service";
-import tabletService, { withTabletOfflineRetry } from "./tablet.service";
 import * as fkWanDeviceService from "./fk-wan-device.service";
 import { resolveNextDeviceUserId } from "./student.service";
 import { sendAttendanceNotification } from "./attendance/notification.service";
@@ -26,9 +23,6 @@ type DeviceRegisterInput = {
   pin?: string;
   firmware_version?: string;
   api_url?: string;
-  tablet_ip?: string;
-  tablet_port?: number;
-  tablet_id?: string | number | bigint | null;
   license_number?: number;
   device_serial?: string;
   product_code?: string;
@@ -44,12 +38,9 @@ type DeviceUpdateInput = {
   is_active?: boolean;
   firmware_version?: string | null;
   api_url?: string | null;
-  tablet_ip?: string | null;
-  tablet_port?: number | null;
   last_sync_status?: string | null;
   last_sync_error?: string | null;
   last_status_message?: string | null;
-  tablet_id?: string | number | bigint | null;
   license_number?: number | null;
   device_serial?: string | null;
   product_code?: string | null;
@@ -128,41 +119,6 @@ const toBigInt = (value: string | number | bigint) => {
   if (typeof value === "bigint") return value;
   if (typeof value === "number") return BigInt(value);
   return BigInt(value);
-};
-
-const normalizeBaseUrl = (value: string | null | undefined) => {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.replace(/\/+$/, "") : null;
-};
-
-export const resolveDeviceApiUrl = (device: devices & { tablet?: { url: string } | null }) => {
-  const tabletUrl = normalizeBaseUrl(device.tablet?.url);
-  if (tabletUrl) return tabletUrl;
-
-  const savedApiUrl = normalizeBaseUrl(device.api_url);
-  if (savedApiUrl) return savedApiUrl;
-
-  if (device.tablet_ip && device.tablet_port) {
-    return `http://${device.tablet_ip}:${device.tablet_port}`;
-  }
-  return null;
-};
-
-export const resolveTabletBridgeUrl = (device: devices & { tablet?: { url: string } | null }) => {
-  const tabletUrl = normalizeBaseUrl(device.tablet?.url);
-  if (tabletUrl) return tabletUrl;
-
-  const savedApiUrl = normalizeBaseUrl(device.api_url);
-  if (savedApiUrl) return savedApiUrl;
-
-  // Accept any port as the bridge API port (not just 5000).
-  // The bridge server.js defaults to PORT=5000 but this can be configured.
-  if (device.tablet_ip && device.tablet_port) {
-    return `http://${device.tablet_ip}:${device.tablet_port}`;
-  }
-
-  return null;
 };
 
 export const buildDevicePushTarget = (input: DevicePushTargetInput) => ({
@@ -272,138 +228,25 @@ const isWithinRange = (minutes: number, start: number, end: number) => {
   return minutes >= start || minutes <= end;
 };
 
-const formatDevice = (record: devices) => {
-  const { pin_hash: _pinHash, ...rest } = record;
-  const lastSeenAt = record.last_seen_at ? new Date(record.last_seen_at) : null;
-  const isOnline = lastSeenAt ? Date.now() - lastSeenAt.getTime() < 90_000 : false;
-  return {
-    ...rest,
-    id: record.id.toString(),
-    school_id: record.school_id.toString(),
-    status: isOnline ? "online" : "offline",
-    is_online: isOnline,
-    last_seen_at: lastSeenAt?.toISOString() ?? null,
-    last_sync_at: record.last_sync_at?.toISOString() ?? null,
-    tablet_port: record.tablet_port?.toString() ?? null
-  };
-};
-
-/**
- * Check if a tablet bridge is actually reachable via HTTP
- * @param bridgeUrl - Base URL of the Windows tablet bridge API
- * @param timeoutMs - Timeout in milliseconds (default: 3000)
- * @returns true if tablet responds, false otherwise
- */
-const checkTabletReachability = async (
-  bridgeUrl: string | null,
-  timeoutMs = 10000   // 10s — WireGuard VPN tunnels can have initial latency
-): Promise<boolean> => {
-  if (!bridgeUrl) return false;
-
-  try {
-    const url = `${normalizeBaseUrl(bridgeUrl)}/api/health`;
-    
-    const response = await axios.get(url, {
-      timeout: timeoutMs,
-      validateStatus: () => true, // Accept any status code — even 404 means bridge is up
-    });
-
-    return response.status > 0;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Format device with real-time tablet status check
- * @param record - Device record from database
- * @param checkRealTimeStatus - Whether to check actual tablet connectivity (default: false)
- * @returns Formatted device object
- */
-const formatDeviceWithStatus = async (
-  record: devices & { tablet?: { url: string; id?: bigint; ip?: string | null; port?: number | null; status?: string; name?: string } | null },
-  checkRealTimeStatus = false
-) => {
-  const { pin_hash: _pinHash, ...rest } = record;
-  // FK WAN terminals are identified by the server's device registry. Never
-  // probe their IP or route them through a tablet bridge/WireGuard.
+/** Format status from the direct WAN registry only; never probe a tablet/IP. */
+const formatDeviceWithStatus = async (record: devices) => {
+  const { pin_hash: _pinHash, tablet_ip: _tabletIp, tablet_port: _tabletPort, tablet_id: _tabletId, ...rest } = record;
   const direct = await prisma.fk_wan_devices.findUnique({
     where: { device_uid: record.device_uid },
     select: { is_online: true, last_seen_at: true, assigned_name: true, device_name: true }
   });
-  if (direct) {
-    const seen = direct.last_seen_at ? new Date(direct.last_seen_at) : null;
-    const online = direct.is_online;
-    return {
-      ...rest,
-      name: direct.assigned_name || record.name || direct.device_name,
-      id: record.id.toString(),
-      school_id: record.school_id.toString(),
-      status: online ? "online" : "offline",
-      is_online: online,
-      is_connected: online,
-      last_seen_at: seen?.toISOString() ?? null,
-      last_sync_at: record.last_sync_at?.toISOString() ?? null,
-      tablet_port: null,
-      tablet: null,
-      connection_tier: online ? "full" : "offline",
-      bridge_reachable: false,
-      fk623_connected: online,
-      wireguard_active: false,
-    };
-  }
-  const lastSeenAt = record.last_seen_at ? new Date(record.last_seen_at) : null;
-  // 90-second grace window — bridge-sse updates last_seen_at on every scan,
-  // pull-logs job updates every 5s. 90s = enough buffer for one missed sweep.
-  // Extended to 10 minutes so devices don't flicker offline between pull sweeps
-  // when no student has scanned recently (e.g. overnight, weekends).
-  const recentHeartbeat = lastSeenAt ? Date.now() - lastSeenAt.getTime() < 600_000 : false;
-
-  // Also treat the device as online if the linked tablet's status is 'online'
-  // in the DB — this is updated by bridge-sse and pull-logs independently of
-  // last_seen_at, so it catches the case where the tablet is connected and
-  // sending logs but no scan has happened in the last 90 seconds.
-  const tabletOnline = (record.tablet as any)?.status === 'online';
-
-  let isOnline = false;
-  let isConnected = false;
-  let status = "offline";
-
-  if (checkRealTimeStatus) {
-    // If the bridge is reachable, the device is effectively healthy and should stay online
-    // even when the last heartbeat is slightly stale or the FK device flag has not refreshed yet.
-    const bridgeReachable = await checkTabletReachability(resolveTabletBridgeUrl(record));
-    const fkConnected = Boolean(record.is_connected);
-
-    isConnected = bridgeReachable || fkConnected || recentHeartbeat || tabletOnline;
-    isOnline = isConnected;
-    status = isOnline ? "online" : "offline";
-  } else {
-    // Fallback to last_seen_at timestamp OR tablet.status field.
-    // tablet.status='online' is set by bridge-sse on every scan event and by
-    // pull-logs on every successful pull — more reliable than last_seen_at alone.
-    isOnline = recentHeartbeat || tabletOnline;
-    isConnected = isOnline;
-    status = isOnline ? "online" : "offline";
-  }
-
+  const lastSeenAt = direct?.last_seen_at ?? null;
+  const isOnline = Boolean(direct?.is_online);
   return {
     ...rest,
+    name: direct?.assigned_name || record.name || direct?.device_name || record.name,
     id: record.id.toString(),
     school_id: record.school_id.toString(),
-    status,
+    status: isOnline ? "online" : "offline",
     is_online: isOnline,
-    is_connected: isConnected,
+    is_connected: isOnline,
     last_seen_at: lastSeenAt?.toISOString() ?? null,
     last_sync_at: record.last_sync_at?.toISOString() ?? null,
-    tablet_port: record.tablet_port?.toString() ?? null,
-    tablet: record.tablet ? {
-      id: record.tablet.id?.toString() ?? null,
-      ip: record.tablet.ip ?? null,
-      port: record.tablet.port ?? null,
-      url: record.tablet.url ?? null,
-      status: (record.tablet as any).status ?? null,
-    } : null,
   };
 };
 
@@ -440,9 +283,6 @@ export const registerDevice = async (
       pin_hash,
       firmware_version: input.firmware_version,
       api_url: input.api_url,
-      tablet_ip: input.tablet_ip,
-      tablet_port: input.tablet_port ? Number(input.tablet_port) : null,
-      tablet_id: input.tablet_id ? toBigInt(input.tablet_id) : null,
       license_number: input.license_number,
       device_serial: input.device_serial,
       product_code: input.product_code,
@@ -450,7 +290,7 @@ export const registerDevice = async (
     }
   });
 
-  return formatDeviceWithStatus(created, true);
+  return formatDeviceWithStatus(created);
 };
 
 export const findAllDevices = async (
@@ -478,7 +318,6 @@ export const findAllDevices = async (
   const [items, total] = await prisma.$transaction([
     prisma.devices.findMany({
       where,
-      include: { tablet: { select: { url: true, status: true, ip: true, port: true } } },
       orderBy: resolveOrderBy(sort, order),
       skip: (page - 1) * limit,
       take: limit
@@ -486,10 +325,9 @@ export const findAllDevices = async (
     prisma.devices.count({ where })
   ]);
 
-  // Use cached last_seen_at for the list — live pings are too slow when N devices are offline.
-  // Live ping is reserved for GET /devices/:id/status (getDeviceStatus).
+  // Connectivity is read from the direct WAN registry, never probed per-device.
   const formattedDevices = await Promise.all(
-    items.map(device => formatDeviceWithStatus(device, false))
+    items.map(device => formatDeviceWithStatus(device))
   );
 
   return {
@@ -508,14 +346,13 @@ export const findDeviceById = async (schoolId: string | number | bigint, id: str
       id: toBigInt(id),
       school_id: toBigInt(schoolId)
     },
-    include: { tablet: { select: { url: true } } }
   });
 
   if (!record) {
     throw new AppError("not_found", "Device not found", 404);
   }
 
-  return formatDeviceWithStatus(record, true);
+  return formatDeviceWithStatus(record);
 };
 
 export const updateDevice = async (
@@ -550,9 +387,6 @@ export const updateDevice = async (
       is_active: input.is_active,
       firmware_version: input.firmware_version,
       api_url: input.api_url,
-      tablet_ip: input.tablet_ip,
-      tablet_port: input.tablet_port !== undefined ? (input.tablet_port ? Number(input.tablet_port) : null) : undefined,
-      tablet_id: input.tablet_id !== undefined ? (input.tablet_id ? toBigInt(input.tablet_id) : null) : undefined,
       license_number: input.license_number,
       device_serial: input.device_serial,
       product_code: input.product_code,
@@ -564,7 +398,7 @@ export const updateDevice = async (
     }
   });
 
-  return formatDeviceWithStatus(updated, true);
+  return formatDeviceWithStatus(updated);
 };
 
 export const deactivateDevice = async (schoolId: string | number | bigint, id: string) => {
@@ -588,7 +422,7 @@ export const deactivateDevice = async (schoolId: string | number | bigint, id: s
     data: { is_active: false }
   });
 
-  return formatDeviceWithStatus(updated, false); // No need to check real-time status when deactivating
+  return formatDeviceWithStatus(updated);
 };
 
 export const deleteDevice = async (schoolId: string | number | bigint, id: string) => {
@@ -609,7 +443,7 @@ export const deleteDevice = async (schoolId: string | number | bigint, id: strin
 
   await prisma.devices.delete({ where: { id: existing.id } });
 
-  return formatDeviceWithStatus(existing, false); // No need to check real-time status when deleting
+  return formatDeviceWithStatus(existing);
 };
 
 export const pushStudentsToDevice = async (
@@ -626,7 +460,6 @@ export const pushStudentsToDevice = async (
       id: toBigInt(id),
       school_id: toBigInt(schoolId)
     },
-    include: { tablet: { select: { url: true } } }
   });
 
   if (!device) {
@@ -774,7 +607,6 @@ export const removeStudentsFromDevice = async (
 
   const device = await prisma.devices.findFirst({
     where: { id: toBigInt(id), school_id: toBigInt(schoolId) },
-    include: { tablet: { select: { url: true } } }
   });
   if (!device) throw new AppError("not_found", "Device not found", 404);
 
@@ -853,20 +685,11 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
     throw new AppError("bad_request", "Invalid device id", 400);
   }
 
-  // ── Include tablet relation so resolveTabletBridgeUrl can use tablet.url ──
-  // Without this include, device.tablet is undefined and the bridge URL falls
-  // back to device.api_url or device.tablet_ip:tablet_port — if those are also
-  // missing the device always shows offline even when WireGuard is active.
   const device = await prisma.devices.findFirst({
     where: {
       id: toBigInt(id),
       school_id: toBigInt(schoolId)
     },
-    include: {
-      tablet: {
-        select: { id: true, url: true, ip: true, port: true, status: true, name: true }
-      }
-    }
   });
 
   if (!device) {
@@ -883,17 +706,14 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
         last_sync_status: wanRecord.is_online ? "online" : "offline",
         last_status_message: wanRecord.is_online ? "FK terminal connected directly by WAN" : "FK terminal has not polled recently",
       },
-      include: { tablet: { select: { id: true, url: true, ip: true, port: true, status: true, name: true } } },
     });
     return {
-      ...await formatDeviceWithStatus(updated, false),
+      ...await formatDeviceWithStatus(updated),
       status: wanRecord.is_online ? "online" : "offline",
       is_online: wanRecord.is_online,
       is_connected: wanRecord.is_online,
       connection_tier: wanRecord.is_online ? "full" : "offline",
-      bridge_reachable: false,
       fk623_connected: wanRecord.is_online,
-      wireguard_active: false,
       last_seen_at: wanRecord.last_seen_at?.toISOString() ?? null,
       device_status: { connected: wanRecord.is_online, serialNumber: wanRecord.device_uid, productName: wanRecord.device_name, firmware: wanRecord.firmware_version },
     };
@@ -906,66 +726,37 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
  * Get device connection statuses for all devices
  * Used by dynamic device logs feature for device health monitoring
  * @param schoolId - School ID
- * @param tabletId - Optional tablet ID to filter devices
  * @returns Array of device status objects
  */
-export const getAllDeviceStatuses = async (
-  schoolId: string | number | bigint,
-  tabletId?: string | number | bigint
-) => {
-  const where: any = {
-    school_id: toBigInt(schoolId)
-  };
-  
-  if (tabletId) {
-    where.tablet_id = toBigInt(tabletId);
-  }
-  
-  const devices = await prisma.devices.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      device_serial: true,
-      tablet_ip: true,
-      is_connected: true,
-      last_connection_at: true,
-      connection_error: true
-    }
-  });
-  
-  return devices.map(device => ({
-    deviceId: device.id.toString(),
-    name: device.name,
-    serialNumber: device.device_serial ?? undefined,
-    ipAddress: device.tablet_ip ?? undefined,
-    isConnected: device.is_connected,
-    lastConnectionAt: device.last_connection_at?.toISOString() ?? undefined,
-    connectionError: device.connection_error ?? undefined
-  }));
+export const getAllDeviceStatuses = async (schoolId: string | number | bigint) => {
+  const records = await fkWanDeviceService.syncDiscoveredDevices();
+  return records
+    .filter(record => record.school_id === toBigInt(schoolId))
+    .map(record => ({
+      deviceId: record.device_uid,
+      name: record.assigned_name,
+      serialNumber: record.device_uid,
+      isConnected: record.is_online,
+      lastConnectionAt: record.last_seen_at?.toISOString() ?? undefined,
+      connectionError: record.is_online ? undefined : "No recent WAN poll from terminal",
+    }));
 };
 
 /**
- * Get LIVE status for all devices by pinging each tablet bridge in parallel.
- * This is the REAL status — NOT from DB cache.
- * Each device's bridge is pinged via HTTP GET /api/health over WireGuard VPN.
- * Returns connection tier: "full" (FK623+tablet), "bridge" (tablet only), "offline".
- * Used by school admin dashboard and device management for real-time display.
+ * Get live status from the FK Device-Server registry. Terminals are discovered
+ * by their WAN polls; this endpoint never probes tablet or private-LAN IPs.
  */
 export const getLiveDeviceStatuses = async (
   schoolId: string | number | bigint
 ): Promise<Array<{
   id: string;
   name: string;
-  connection_tier: "full" | "bridge" | "offline";
+  connection_tier: "full" | "offline";
   is_online: boolean;
   is_connected: boolean;
   fk623_connected: boolean;
-  bridge_reachable: boolean;
   users: number;
   logs: number;
-  tablet_name: string | null;
-  tablet_ip: string | null;
   last_status_message: string | null;
 }>> => {
   const records = await fkWanDeviceService.syncDiscoveredDevices();
@@ -980,11 +771,8 @@ export const getLiveDeviceStatuses = async (
       is_online: record.is_online,
       is_connected: record.is_online,
       fk623_connected: record.is_online,
-      bridge_reachable: false,
       users: 0,
       logs: 0,
-      tablet_name: null,
-      tablet_ip: null,
       last_status_message: record.is_online ? "FK terminal connected directly by WAN" : "FK terminal has not polled recently",
       last_seen_at: record.last_seen_at?.toISOString() ?? null,
     };
@@ -2130,17 +1918,17 @@ export const markStudentsAbsent = async (
       id: toBigInt(deviceId),
       school_id: toBigInt(schoolId)
     },
-    include: { tablet: { select: { url: true, status: true } } }
   });
 
   if (!device) {
     throw new AppError("not_found", "Device not found", 404);
   }
 
-  const lastSeenAt = device.last_seen_at ? new Date(device.last_seen_at) : null;
-  const recentHeartbeat = lastSeenAt ? Date.now() - lastSeenAt.getTime() < 600_000 : false;
-  const tabletOnline = (device.tablet as any)?.status === 'online';
-  const deviceIsOnline = Boolean(device.is_connected) || recentHeartbeat || tabletOnline;
+  const directStatus = await prisma.fk_wan_devices.findFirst({
+    where: { device_uid: device.device_uid, school_id: toBigInt(schoolId) },
+    select: { is_online: true },
+  });
+  const deviceIsOnline = Boolean(directStatus?.is_online);
 
   const sessions = normalizeAttendanceSessions(device.attendance_config);
   const session = sessions.find((s: any) => {

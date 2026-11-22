@@ -419,7 +419,7 @@ function fmtStudent(s: any) {
 }
 
 /**
- * Assign device to location AND auto-push students to the linked tablet.
+ * Assign device to location AND auto-push students through the direct FK WAN server.
  * This is the main entry point used by DOD.
  * Returns assignment result + push summary.
  */
@@ -440,20 +440,7 @@ export const assignDeviceLocationAndPush = async (
   // 2. Get students for this device
   const studentData = await getStudentsForDevice(schoolId, deviceId);
 
-  // 3. Find tablet linked to this device
-  const deviceRow = await prisma.devices.findFirst({
-    where: { id: toBigInt(deviceId), school_id: toBigInt(schoolId) },
-    select: { tablet_id: true },
-  });
-
-  if (!deviceRow?.tablet_id) {
-    return {
-      device,
-      push: { pushed: 0, failed: 0, groups: studentData.groupCount, message: "Device not linked to a tablet — students not pushed" },
-    };
-  }
-
-  // 4. Push the requested group (default group 1)
+  // 3. Push the requested group (default group 1) through the device's WAN UID.
   const groupIndex = (input.group ?? 1) - 1;
   const targetGroup = studentData.groups[groupIndex];
   if (!targetGroup) {
@@ -485,7 +472,7 @@ export const assignDeviceLocationAndPush = async (
       pushed,
       failed,
       groups: studentData.groupCount,
-      message: `Group ${groupIndex + 1}/${studentData.groupCount} pushed to ${pushed}/${targetGroup.students.length} students`,
+      message: `Group ${groupIndex + 1}/${studentData.groupCount} queued through direct WAN for ${pushed}/${targetGroup.students.length} students`,
     },
   };
 };

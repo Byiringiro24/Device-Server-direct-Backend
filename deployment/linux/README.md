@@ -1,117 +1,44 @@
-﻿# Linux deployment for EcaAfrica backend
+# EcaAfrica direct FK WAN deployment
 
-This folder contains the production-ready deployment files for the backend service.
+## Communication path
 
-## 1) Prepare the Linux server
+FK terminals run in WAN mode and initiate TCP connections to the FK Device-Server on the public server address. The Device-Server records device IDs from those polls and holds queued commands. EcaAfrica's backend connects to that Device-Server over localhost to list devices, queue commands, and read attendance. No tablet bridge, tablet IP, VPN, or WireGuard interface participates in this path.
 
-```bash
-sudo mkdir -p /etc/ecareafrica
-sudo mkdir -p /srv/ecareafrica
-sudo useradd --system --create-home --home-dir /srv/ecareafrica --shell /usr/sbin/nologin ecareafrica || true
-sudo chown -R ecareafrica:ecareafrica /srv/ecareafrica
+```text
+FK terminal (WAN) ──TCP──> public server:8005 (FK Device-Server)
+EcaAfrica backend ──HTTP localhost──> 127.0.0.1:8005
+Browser ──HTTPS──> EcaAfrica API ──> FK Device-Server ──queued reply on device poll──> FK terminal
 ```
 
-## 2) One-click deployment script
+## Required server setup
+
+- Run the FK Device-Server as a persistent service bound to `0.0.0.0:8005`.
+- Permit inbound TCP `8005` through both the host firewall and provider firewall.
+- Set FK terminals to WAN mode with the server's public IP and port `8005`.
+- Keep the management API reachable only from localhost or a trusted private network. Configure `FK_DEVICE_SERVER_URL=http://127.0.0.1:8005` in the EcaAfrica backend environment. Set `FK_DEVICE_SERVER_TOKEN` only if the Device-Server requires it.
+- Configure the database, app secrets, storage, mail, Redis, and domain values in the existing backend `.env`. Never commit that file.
+- No tablet service or WireGuard package, key, port, or configuration is needed for FK terminals.
+
+## Testing/staging deployment
+
+Run on the Linux server as root after confirming the Device-Server health check succeeds:
 
 ```bash
-sudo cp /path/to/Ecareafrica_backend/deployment/linux/deploy-production.sh /tmp/deploy-production.sh
-sudo chmod +x /tmp/deploy-production.sh
-sudo bash /tmp/deploy-production.sh
+DEPLOY_DIR="$(mktemp -d /tmp/eca-deploy.XXXXXX)"
+git clone --depth 1 --branch main https://github.com/Byiringiro24/Device-Server-direct-Backend.git "$DEPLOY_DIR"
+bash "$DEPLOY_DIR/deployment/linux/deploy-testing.sh"
 ```
 
-This script will:
-- create the `/etc/wireguard` folder if needed
-- generate server keys if missing
-- create `/etc/wireguard/wg0.conf`
-- copy `/etc/ecareafrica/backend.env` if present
-- install and restart the systemd service
-- build the backend application
+The script deploys the configured backend and frontend repositories under `/var/www/testing/backend` and `/var/www/testing/frontend`, preserves the existing `.env` files, backs up the current app and local PostgreSQL database, builds before switching app directories, then checks both backend health endpoints and Nginx. It expects the existing FK Device-Server at `127.0.0.1:8005`; it does not install, stop, or reconfigure that service.
 
-## 3) Copy the production env file
+## Checks
 
 ```bash
-sudo cp /path/to/Ecareafrica_backend/.env.production /etc/ecareafrica/backend.env
-sudo nano /etc/ecareafrica/backend.env
+systemctl is-active fk-direct
+curl -fsS http://127.0.0.1:8005/health
+ss -ltnp | grep ':8005'
+curl -fsS http://127.0.0.1:5501/api/v1/health
+curl -fsS http://127.0.0.1:5600/api/v1/health
 ```
 
-Update the database credentials, JWT secrets, SMTP credentials, S3 values, and any live domain names.
-
-## 4) Copy the service file
-
-```bash
-sudo cp /path/to/Ecareafrica_backend/deployment/linux/ecareafrica-backend.service /etc/systemd/system/ecareafrica-backend.service
-sudo systemctl daemon-reload
-sudo systemctl enable ecareafrica-backend
-sudo systemctl start ecareafrica-backend
-sudo systemctl status ecareafrica-backend --no-pager
-```
-
-## 5) Build the backend on the server
-
-```bash
-cd /srv/ecareafrica/Ecareafrica_backend
-npm install
-npm run build
-```
-
-## 6) WireGuard requirements for the real VPN flow
-
-The backend reads these values from the environment:
-
-- WG_CONF_PATH=/etc/wireguard/wg0.conf
-- WG_PUBKEY_PATH=/etc/wireguard/server_public.key
-- WG_INTERFACE=wg0
-- WG_PORT=51820
-- SERVER_PUBLIC_IP=169.58.124.150
-- SERVER_VPN_IP=10.0.0.1
-- VPN_SUBNET=10.0
-- VPN_CIDR=16
-
-Generate the server keys:
-
-```bash
-sudo apt update
-sudo apt install -y wireguard
-sudo mkdir -p /etc/wireguard
-sudo chmod 700 /etc/wireguard
-sudo bash -c 'wg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key'
-sudo chmod 600 /etc/wireguard/server_private.key
-sudo chmod 644 /etc/wireguard/server_public.key
-```
-
-Create the tunnel config:
-
-```bash
-sudo bash -c 'cat > /etc/wireguard/wg0.conf <<EOF
-[Interface]
-Address = 10.0.0.1/16
-PrivateKey = $(cat /etc/wireguard/server_private.key)
-ListenPort = 51820
-SaveConfig = true
-EOF'
-```
-
-Start it:
-
-```bash
-sudo wg-quick up /etc/wireguard/wg0.conf
-sudo wg show wg0
-sudo ufw allow 51820/udp
-```
-
-## 7) Optional Nginx reverse proxy
-
-```bash
-sudo cp /path/to/Ecareafrica_backend/deployment/linux/ecareafrica-nginx.conf /etc/nginx/conf.d/ecareafrica.conf
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## 8) Production notes
-
-- The browser should never SSH into the server.
-- The browser should never contain the server SSH password or root credentials.
-- The frontend must call the backend API only.
-- The backend is the only component allowed to run `wg` commands on the server.
-
-This is the real architecture used by this project.
+Use the Super Admin **Direct WAN Devices** page to confirm automatic discovery, rename terminals, and assign each one to a school. A terminal appears online only after it has polled the Device-Server within the configured online window.

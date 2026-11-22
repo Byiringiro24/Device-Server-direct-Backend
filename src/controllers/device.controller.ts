@@ -85,21 +85,17 @@ export const getDeviceStatus = async (req: Request, res: Response) => {
 };
 
 /**
- * GET /device/status - List all device statuses (optionally filtered by tabletId)
- * Used by the device logs page for device health monitoring
+ * GET /device/status - List FK terminals discovered through direct WAN polls.
  */
 export const listDeviceStatuses = async (req: Request, res: Response) => {
   const schoolId = resolveSchoolId(req);
-  const tabletId = req.query.tabletId as string | undefined;
-  const statuses = await deviceService.getAllDeviceStatuses(schoolId, tabletId);
+  const statuses = await deviceService.getAllDeviceStatuses(schoolId);
   res.json(successResponse(statuses));
 };
 
 /**
  * GET /devices/live-status — REAL live status for all school devices
- * Pings every tablet bridge via WireGuard in parallel (max 8s per device).
- * Returns: connection_tier (full/bridge/offline), fk623_connected, bridge_reachable, users, logs.
- * This is NOT from DB cache — it hits the actual tablet hardware right now.
+ * Refreshes the FK WAN registry and returns each terminal's last poll status.
  */
 export const getLiveDeviceStatuses = async (req: Request, res: Response) => {
   const schoolId = resolveSchoolId(req);

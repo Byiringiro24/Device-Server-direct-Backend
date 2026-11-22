@@ -4,6 +4,7 @@ import type { PaginationParams } from "../../helpers/pagination";
 import { prisma } from "../../database/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { logger } from "../../utils/logger";
+import * as fkWanDeviceService from "../fk-wan-device.service";
 
 type DormAssignmentCreateInput = {
   student_id: string | number | bigint;
@@ -402,8 +403,8 @@ export const createDormAssignment = async (
     return formatAssignment(created);
   });
 
-// Fire-and-forget: after a new dorm assignment, push the student to any
-// device whose location_scope = "dormitory" and dormitory_id matches.
+// Fire-and-forget: push the student through the direct FK WAN server to any
+// assigned terminal whose location_scope = "dormitory" and dormitory_id matches.
 const autoPushStudentToDevices = async (
   schoolId: bigint,
   studentId: bigint,
@@ -418,7 +419,6 @@ const autoPushStudentToDevices = async (
         location_scope: "dormitory",
         is_active: true,
       },
-      include: { tablet: { select: { id: true, url: true } } },
     });
 
     if (!devices.length) return;
@@ -436,19 +436,17 @@ const autoPushStudentToDevices = async (
     }
     const name = `${student.first_name} ${student.last_name}`.trim();
 
-    // Lazy import to avoid circular dependency
-    const { default: tabletService } = await import("../tablet.service");
-
     for (const device of devices) {
-      if (!device.tablet_id) continue;
       try {
-        await tabletService.pushStudentsToDevice(device.tablet_id, schoolId, {
-          mode: "selected",
-          student_ids: [studentId.toString()],
+        const terminal = await prisma.fk_wan_devices.findFirst({
+          where: { device_uid: device.device_uid, school_id: schoolId },
+          select: { device_uid: true },
         });
-        logger.info(`[autoPush] Student ${userId} pushed to device ${device.name} after dorm assignment`);
+        if (!terminal) continue;
+        await fkWanDeviceService.setDeviceUser(terminal.device_uid, userId, name);
+        logger.info(`[autoPush] Student ${userId} queued through direct WAN for ${device.name}`);
       } catch (err) {
-        logger.warn(`[autoPush] Failed to push student ${userId} to device ${device.name}: ${(err as Error).message}`);
+        logger.warn(`[autoPush] Direct WAN push failed for student ${userId} to ${device.name}: ${(err as Error).message}`);
       }
     }
   } catch (err) {

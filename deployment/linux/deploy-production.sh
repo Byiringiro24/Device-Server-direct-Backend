@@ -1,6 +1,9 @@
 #!/bin/bash
 # ============================================================
 # EcaAfrica — Full Deployment Script
+# RETIRED for the direct FK WAN project. This legacy installer targets the old
+# EcaAfrica repositories. Use deployment/linux/deploy-testing.sh from the
+# Device-Server-direct-Backend repository for the current staging deployment.
 # Server: root@169.58.124.150
 # Run FROM the server:
 #   ssh root@169.58.124.150
@@ -102,15 +105,6 @@ SMS_UGANDA_PASSWORD=your_password
 SMS_UGANDA_SENDER=EducationCare
 
 APP_BASE_URL=https://ecareafrica.net
-
-WG_CONF_PATH=/etc/wireguard/wg0.conf
-WG_PUBKEY_PATH=/etc/wireguard/server_public.key
-WG_INTERFACE=wg0
-VPN_SUBNET=10.0
-VPN_CIDR=16
-SERVER_VPN_IP=10.0.0.1
-SERVER_PUBLIC_IP=169.58.124.150
-WG_PORT=51820
 
 PULL_CONCURRENCY=10
 PULL_LOGS_INTERVAL_MS=5000

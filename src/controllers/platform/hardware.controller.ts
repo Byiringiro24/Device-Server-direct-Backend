@@ -35,7 +35,6 @@ export const listDevices = async (req: Request, res: Response) => {
       orderBy: { created_at: "desc" },
       include: {
         school: { select: { id: true, name: true } },
-        tablet: { select: { id: true, name: true, ip: true, port: true } },
       },
     }),
     prisma.devices.count({ where }),
