@@ -27,6 +27,7 @@ export type AttendanceLogsFilters = {
   endDate?: string;
   studentId?: string;
   deviceId?: string;
+  deviceIdValues?: string[];
   method?: string;       // authentication_method value
   status?: string;       // present | late | absent
   syncState?: string;    // synced | queued | failed
@@ -140,7 +141,9 @@ function buildWhere(
     };
   }
 
-  if (filters.deviceId) {
+  if (filters.deviceIdValues?.length) {
+    where.device_id = { in: filters.deviceIdValues };
+  } else if (filters.deviceId) {
     where.device_id = filters.deviceId;
   }
 
@@ -224,7 +227,15 @@ export async function listAttendanceLogs(
   filters: AttendanceLogsFilters,
   pagination: AttendanceLogsPagination
 ) {
-  const where = buildWhere(schoolId, filters);
+  const resolvedFilters = { ...filters };
+  if (filters.deviceId && /^\d+$/.test(filters.deviceId)) {
+    const device = await prisma.devices.findFirst({
+      where: { id: toBigInt(filters.deviceId), school_id: toBigInt(schoolId) },
+      select: { id: true, device_uid: true },
+    });
+    if (device) resolvedFilters.deviceIdValues = [device.id.toString(), device.device_uid];
+  }
+  const where = buildWhere(schoolId, resolvedFilters);
   const offset = (pagination.page - 1) * pagination.limit;
 
   // Source 1: attendance_logs (device pull-log sync)

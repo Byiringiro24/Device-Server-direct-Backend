@@ -1,6 +1,8 @@
 import { createHash } from "crypto";
 import { prisma } from "../database/prisma";
 import * as fkWanDeviceService from "../services/fk-wan-device.service";
+import { normalizeLegacyAttendanceConfig, resolveDeviceAttendance, type DeviceAttendanceSession } from "../services/attendance/device-attendance-rules.service";
+import { sendAttendanceNotification, type AttendanceNotificationKind } from "../services/attendance/notification.service";
 import { logger } from "../utils/logger";
 
 const INTERVAL_MS = Math.max(5_000, Number(process.env.FK_DEVICE_SYNC_INTERVAL_MS || 15_000));
@@ -48,6 +50,16 @@ function methodLabel(value: unknown): string {
   if (raw.includes("card") || raw.includes("rfid") || raw === "3") return "nfc";
   if (raw.includes("pin") || raw.includes("password") || raw === "2") return "manual";
   return "fingerprint";
+}
+
+function notificationFor(mode: string, sessionName: string | null, status: string): AttendanceNotificationKind {
+  const late = status === "late";
+  if (mode === "classroom") return late ? "class_late" : "class_entry";
+  if (mode === "boarding") {
+    const evening = /evening|night/i.test(sessionName ?? "");
+    return late ? "device_late" : evening ? "dormitory_evening_present" : "dormitory_morning_present";
+  }
+  return late ? "device_late" : "school_entry";
 }
 
 function directionLabel(value: unknown): string {
@@ -103,6 +115,13 @@ async function sweep() {
     const assignedByUid = new Map(assigned.map(device => [device.device_uid, device]));
     if (!assignedByUid.size) return;
 
+    const assignedSchoolIds = [...new Set(assigned.flatMap(device => device.school_id === null ? [] : [device.school_id]))];
+    const appDevices = await prisma.devices.findMany({
+      where: { device_uid: { in: [...assignedByUid.keys()] }, school_id: { in: assignedSchoolIds } },
+      include: { device_sessions: { where: { deleted_at: null }, include: { attendance_windows: { orderBy: { sort_order: "asc" } } }, orderBy: { created_at: "asc" } } },
+    });
+    const appDeviceByUid = new Map(appDevices.map(device => [device.device_uid, device]));
+
     const logs = [];
     for (const device of assigned) {
       const cursor = device.last_attendance_received_at;
@@ -123,49 +142,119 @@ async function sweep() {
       const deviceUid = String(log?.deviceId || "");
       const device = assignedByUid.get(deviceUid);
       const payload = log?.payload;
-      if (!device || !payload || typeof payload !== "object") return [];
+      const appDevice = appDeviceByUid.get(deviceUid);
+      if (!device || !appDevice || !payload || typeof payload !== "object") return [];
       const raw = payload as Record<string, unknown>;
       const timestamp = eventDate(raw.io_time ?? raw.timestamp, log.receivedAt);
       const userId = asString(raw.user_id ?? raw.userId);
       if (!timestamp) return [];
-      return [{ log, deviceUid, device, raw, timestamp, userId }];
+      return [{ log, deviceUid, device, appDevice, raw, timestamp, userId }];
     });
     const schoolIds = [...new Set(validLogs.map(item => item.device.school_id!.toString()))].map(BigInt);
     const userIds = [...new Set(validLogs.map(item => item.userId).filter((id): id is string => Boolean(id)))];
     const students = schoolIds.length && userIds.length ? await prisma.students.findMany({
       where: { school_id: { in: schoolIds }, device_user_id: { in: userIds }, deleted_at: null },
-      select: { id: true, school_id: true, device_user_id: true, student_id_number: true, first_name: true, last_name: true }
+      select: {
+        id: true, school_id: true, device_user_id: true, student_id_number: true, first_name: true, last_name: true,
+        student_section_enrollments: { where: { status: "active" }, take: 1, orderBy: { enrolled_at: "desc" }, select: { section: { select: { name: true, class: { select: { name: true } } } } } },
+      }
     }) : [];
     const studentByKey = new Map(students.map(student => [`${student.school_id}:${student.device_user_id}`, student]));
     const rows = [];
-    for (const { log, deviceUid, device, raw, timestamp, userId } of validLogs) {
+    const notificationRows: Array<{ row: any; student: (typeof students)[number]; kind: AttendanceNotificationKind; templateId?: bigint }> = [];
+    for (const { log, deviceUid, device, appDevice, raw, timestamp, userId } of validLogs) {
       // The receive timestamp changes when the same device log is re-fetched.
       // Hash only the device's stable event fields so daily history pulls stay idempotent.
       const sourceIdentity = JSON.stringify([deviceUid, raw.user_id ?? raw.userId, raw.io_time ?? raw.timestamp, raw.verify_mode, raw.io_mode, raw.work_code ?? 0]);
       const logId = createHash("sha256").update(sourceIdentity).digest("hex");
       const student = userId ? studentByKey.get(`${device.school_id}:${userId}`) : null;
+      const configuredSessions: DeviceAttendanceSession[] = appDevice.device_sessions.length
+        ? appDevice.device_sessions.map(session => ({
+            id: session.id.toString(), name: session.name, send_sms: session.send_sms,
+            auto_approve: session.auto_approve, notification_template_id: session.notification_template_id?.toString(),
+            is_active: session.is_active, windows: session.attendance_windows,
+          }))
+        : normalizeLegacyAttendanceConfig(appDevice.attendance_config);
+      const resolved = resolveDeviceAttendance(configuredSessions, timestamp);
+      const enrollment = student?.student_section_enrollments?.[0];
+      const localDeviceId = appDevice.id.toString();
       rows.push({
         school_id: device.school_id!,
         log_id: logId,
-        user_id: userId,
+        user_id: student?.id.toString() ?? userId,
         student_id: student?.student_id_number ?? student?.id.toString() ?? null,
         student_device_id: userId,
         student_name: student ? `${student.first_name} ${student.last_name}`.trim() : null,
-        device_id: deviceUid,
+        class_name: enrollment?.section.class.name ?? null,
+        section: enrollment?.section.name ?? null,
+        // School API selectors use this local ID. Keep the vendor UID in raw_data.
+        device_id: localDeviceId,
         authentication_method: methodLabel(raw.verify_mode),
         direction: directionLabel(raw.io_mode),
         timestamp,
-        status: "synced",
-        raw_data: { ...raw, device_uid: deviceUid, received_at: log.receivedAt ?? null },
+        status: resolved.status,
+        attendance_period: resolved.sessionName ?? resolved.statusLabel,
+        raw_data: { ...raw, device_uid: deviceUid, local_device_id: localDeviceId, received_at: log.receivedAt ?? null, attendance_session: resolved.sessionName },
         sync_state: "synced",
         synced_at: new Date(),
       });
+      if (student && resolved.session?.send_sms === true && ["present", "late", "grace"].includes(resolved.status) && raw.source !== "historical") {
+        const mode = String(appDevice.mode ?? "");
+        notificationRows.push({ row: rows[rows.length - 1], student, kind: notificationFor(mode, resolved.sessionName, resolved.status), templateId: resolved.session.notification_template_id ? BigInt(resolved.session.notification_template_id) : undefined });
+      }
     }
-    const saved = rows.length ? await prisma.attendance_logs.createMany({ data: rows, skipDuplicates: true }) : { count: 0 };
+    const uniqueRows = [...new Map(rows.map(row => [`${row.device_id}:${row.log_id}`, row])).values()];
+    const existingByKey = new Map<string, { id: bigint }>();
+    for (let offset = 0; offset < uniqueRows.length; offset += 400) {
+      const chunk = uniqueRows.slice(offset, offset + 400);
+      const existing = await prisma.attendance_logs.findMany({
+        where: { OR: chunk.flatMap(row => [
+          { device_id: row.device_id, log_id: row.log_id },
+          { device_id: String((row.raw_data as any)?.device_uid ?? ""), log_id: row.log_id },
+        ]) },
+        select: { id: true, device_id: true, log_id: true },
+      });
+      for (const item of existing) if (item.log_id) existingByKey.set(`${String(item.device_id)}:${item.log_id}`, { id: item.id });
+    }
+    const freshRows = [];
+    let refreshed = 0;
+    for (const row of uniqueRows) {
+      const legacyUid = String((row.raw_data as any)?.device_uid ?? "");
+      const existing = existingByKey.get(`${row.device_id}:${row.log_id}`) ?? existingByKey.get(`${legacyUid}:${row.log_id}`);
+      if (!existing) {
+        freshRows.push(row);
+        continue;
+      }
+      // Upgrade older gateway-keyed records in place and refresh their matched
+      // student/session classification. This preserves one scan row and never
+      // re-sends SMS for history that was already stored.
+      await prisma.attendance_logs.update({
+        where: { id: existing.id },
+        data: {
+          user_id: row.user_id, student_id: row.student_id, student_device_id: row.student_device_id,
+          student_name: row.student_name, class_name: row.class_name, section: row.section,
+          device_id: row.device_id, authentication_method: row.authentication_method,
+          direction: row.direction, timestamp: row.timestamp, status: row.status,
+          attendance_period: row.attendance_period, raw_data: row.raw_data,
+          sync_state: row.sync_state, synced_at: row.synced_at,
+        },
+      });
+      refreshed += 1;
+    }
+    const saved = freshRows.length ? await prisma.attendance_logs.createMany({ data: freshRows, skipDuplicates: true }) : { count: 0 };
+    const freshLogIds = new Set(freshRows.map(row => `${row.device_id}:${row.log_id}`));
+    for (const item of notificationRows) {
+      if (!freshLogIds.has(`${item.row.device_id}:${item.row.log_id}`)) continue;
+      void sendAttendanceNotification({
+        schoolId: item.row.school_id, studentId: item.student.id,
+        kind: item.kind, occurredAt: item.row.timestamp, templateId: item.templateId,
+        context: { attendance_status: String(item.row.status), status: String(item.row.status), session_name: String(item.row.attendance_period ?? "") },
+      }).catch(error => logger.warn({ err: error, studentId: item.student.id.toString() }, "FK attendance session SMS failed"));
+    }
     for (const [deviceUid, receivedAt] of maxReceivedByUid) {
       await prisma.fk_wan_devices.update({ where: { device_uid: deviceUid }, data: { last_attendance_received_at: receivedAt } });
     }
-    logger.info({ fetched: logs.length, accepted: rows.length, inserted: saved.count }, "FK WAN attendance sync completed");
+    logger.info({ fetched: logs.length, accepted: rows.length, inserted: saved.count, refreshed }, "FK WAN attendance sync completed");
   } catch (error) {
     logger.warn({ err: error }, "FK WAN discovery/attendance sync failed");
   } finally {

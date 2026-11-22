@@ -389,7 +389,7 @@ function safeFolderName(value: string) {
   return value.normalize("NFKD").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "school";
 }
 
-export async function saveDeviceBiometricBackup(deviceUid: string) {
+export async function saveDeviceBiometricBackup(deviceUid: string, requiredUserIds: string[] = []) {
   if (!deviceIdOk(deviceUid)) throw new AppError("bad_request", "Invalid FK device ID", 400);
   const device = await prisma.fk_wan_devices.findUnique({
     where: { device_uid: deviceUid }, include: { school: { select: { id: true, name: true } } },
@@ -404,7 +404,15 @@ export async function saveDeviceBiometricBackup(deviceUid: string) {
     const encoded = String(item.templateBase64 ?? "");
     return item.deviceId === deviceUid && encoded.length > 0 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded);
   });
-  if (!biometrics.length) return { saved: false, users: users.length, biometrics: 0, reason: "No biometric templates are currently stored by the FK Device-Server" };
+  const requiredWithTemplates = users
+    .filter(user => requiredUserIds.includes(String(user.userId)) && Array.isArray(user.biometricMethods) && user.biometricMethods.length > 0)
+    .map(user => String(user.userId));
+  const backedUpUserIds = new Set(biometrics.map(item => String(item.userId)));
+  const missingTemplateUsers = requiredWithTemplates.filter(userId => !backedUpUserIds.has(userId));
+  if (missingTemplateUsers.length) {
+    throw new AppError("conflict", `Refusing device deletion: biometric backup is incomplete for ${missingTemplateUsers.length} selected user(s)`, 409);
+  }
+  if (!users.length) return { saved: false, available: false, users: 0, biometrics: 0, reason: "The FK Device-Server returned no user snapshot to back up" };
 
   const savedAt = new Date();
   const payload = Buffer.from(JSON.stringify({
@@ -426,7 +434,9 @@ export async function saveDeviceBiometricBackup(deviceUid: string) {
   const hashPath = join(directory, "latest.sha256");
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const oldHash = await readFile(hashPath, "utf8").catch(() => "");
-  if (oldHash.trim() !== contentHash) {
+  const existingBackup = await readFile(dataPath).catch(() => null);
+  const changed = oldHash.trim() !== contentHash || !existingBackup;
+  if (changed) {
     const tempPath = `${dataPath}.${randomBytes(6).toString("hex")}.tmp`;
     await writeFile(tempPath, encryptedBackup(payload), { mode: 0o600 });
     await rename(tempPath, dataPath);
@@ -437,7 +447,7 @@ export async function saveDeviceBiometricBackup(deviceUid: string) {
     device_users_count: users.length,
     last_biometric_backup_at: savedAt,
   } });
-  return { saved: oldHash.trim() !== contentHash, users: users.length, biometrics: biometrics.length, directory, savedAt: savedAt.toISOString() };
+  return { saved: changed, available: true, users: users.length, biometrics: biometrics.length, biometricUserIds: [...backedUpUserIds], directory, savedAt: savedAt.toISOString() };
 }
 
 export async function getAttendanceFromDeviceServer(options: { limit?: number; offset?: number; deviceUid?: string; since?: Date | null } = {}) {
@@ -508,5 +518,44 @@ export async function setDeviceUser(deviceUid: string, userId: string, name: str
 }
 
 export async function deleteDeviceUser(deviceUid: string, userId: string) {
-  return queueDeviceCommand(deviceUid, "DELETE_USER", { user_id: String(userId) });
+  const removed = await queueDeviceCommand(deviceUid, "DELETE_USER", { user_id: String(userId) });
+  // A command ACK alone is not proof that the terminal removed the enrollment.
+  // Refresh the device's ID list and check the read-back before reporting success.
+  await queueDeviceCommand(deviceUid, "GET_USER_ID_LIST", {});
+  const users = await getDeviceUsers(deviceUid);
+  if (users.some(user => String(user.userId) === String(userId))) {
+    throw new AppError("conflict", `The device acknowledged deletion but still reports user ${userId}`, 409);
+  }
+  return { ...removed, verifiedRemoved: true };
+}
+
+export async function clearDeviceLogs(deviceUid: string) {
+  const cleared = await queueDeviceCommand(deviceUid, "CLEAR_LOG_DATA", {});
+  const readback = await queueDeviceCommand(deviceUid, "GET_LOG_DATA", {});
+  const decoded = (readback.resultDecoded ?? {}) as Record<string, unknown>;
+  const count = Number(decoded.log_count);
+  if (!Number.isFinite(count)) {
+    throw new AppError("bad_gateway", "The device acknowledged log clearing, but did not return a verifiable log count", 502);
+  }
+  if (count > 0) {
+    throw new AppError("conflict", `The device still reports ${count} attendance log(s); server attendance history was preserved`, 409);
+  }
+  return { ...cleared, verifiedEmpty: true, serverAttendancePreserved: true };
+}
+
+export async function syncDeviceTime(deviceUid: string) {
+  const now = new Date();
+  const timezone = process.env.FK_SYNC_TIMEZONE || process.env.TZ || "Africa/Kampala";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const time = `${values.year}${values.month}${values.day}${values.hour}${values.minute}${values.second}`;
+  const result = await queueDeviceCommand(deviceUid, "SET_TIME", { time });
+  return { ...result, requestedDeviceTime: time, timezone, acknowledged: true };
+}
+
+export async function checkDeviceStatus(deviceUid: string) {
+  return queueDeviceCommand(deviceUid, "GET_DEVICE_STATUS", {});
 }

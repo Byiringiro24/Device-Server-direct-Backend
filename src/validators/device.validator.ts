@@ -5,6 +5,19 @@ export const deviceIdParamSchema = z.object({
   id: z.string().min(1)
 });
 
+export const directDeviceUserMatchSchema = z.object({
+  params: deviceIdParamSchema,
+  body: z.object({ userId: z.string().min(1).max(50), studentId: z.string().regex(/^\d+$/) }),
+});
+
+export const directDeviceUsersDeleteSchema = z.object({
+  params: deviceIdParamSchema,
+  body: z.object({
+    userIds: z.array(z.string().min(1).max(50)).min(1).max(1000).optional(),
+    all: z.boolean().optional(),
+  }).refine(body => body.all === true || Boolean(body.userIds?.length), "Select device user IDs or request all device users"),
+});
+
 export const deviceSessionParamSchema = z.object({
   id: z.string().min(1),
   sessionId: z.string().min(1)

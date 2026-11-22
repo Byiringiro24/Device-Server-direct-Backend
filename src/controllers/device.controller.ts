@@ -71,6 +71,21 @@ export const getDirectDeviceUsers = async (req: Request, res: Response) => {
   res.json(successResponse(await deviceService.getDirectDeviceUsers(schoolId, req.params.id)));
 };
 
+export const deleteDirectDeviceUsers = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.deleteDirectDeviceUsers(schoolId, req.params.id, req.body)));
+};
+
+export const getDirectDeviceUserMatchCandidates = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.getDirectDeviceUserMatchCandidates(schoolId, req.params.id)));
+};
+
+export const matchDirectDeviceUserToStudent = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.matchDirectDeviceUserToStudent(schoolId, req.params.id, req.body)));
+};
+
 export const refreshDirectDeviceUsers = async (req: Request, res: Response) => {
   const schoolId = resolveSchoolId(req);
   res.status(202).json(successResponse(await deviceService.refreshDirectDeviceUsers(schoolId, req.params.id)));
@@ -79,6 +94,21 @@ export const refreshDirectDeviceUsers = async (req: Request, res: Response) => {
 export const refreshDirectDeviceLogs = async (req: Request, res: Response) => {
   const schoolId = resolveSchoolId(req);
   res.status(202).json(successResponse(await deviceService.refreshDirectDeviceLogs(schoolId, req.params.id)));
+};
+
+export const syncDirectDeviceTime = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.syncDirectDeviceTime(schoolId, req.params.id)));
+};
+
+export const checkDirectDeviceCommandStatus = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.checkDirectDeviceCommandStatus(schoolId, req.params.id)));
+};
+
+export const clearDirectDeviceLogs = async (req: Request, res: Response) => {
+  const schoolId = resolveSchoolId(req);
+  res.json(successResponse(await deviceService.clearDirectDeviceLogs(schoolId, req.params.id)));
 };
 
 /**

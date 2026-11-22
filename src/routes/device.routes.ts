@@ -132,6 +132,8 @@ import {
   createDeviceSchema,
   deviceIdParamSchema,
   deviceSessionParamSchema,
+  directDeviceUserMatchSchema,
+  directDeviceUsersDeleteSchema,
   listDevicesSchema,
   recordDeviceAttendanceEventSchema,
   saveDeviceAttendanceConfigSchema,
@@ -222,6 +224,24 @@ deviceRoutes.get(
   asyncWrapper(deviceController.getDirectDeviceUsers)
 );
 
+deviceRoutes.get(
+  "/:id/users/match-candidates",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.getDirectDeviceUserMatchCandidates)
+);
+
+deviceRoutes.post(
+  "/:id/users/match",
+  validate(directDeviceUserMatchSchema),
+  asyncWrapper(deviceController.matchDirectDeviceUserToStudent)
+);
+
+deviceRoutes.post(
+  "/:id/users/delete",
+  validate(directDeviceUsersDeleteSchema),
+  asyncWrapper(deviceController.deleteDirectDeviceUsers)
+);
+
 deviceRoutes.post(
   "/:id/users/pull",
   validate({ params: deviceIdParamSchema }),
@@ -232,6 +252,24 @@ deviceRoutes.post(
   "/:id/logs/pull",
   validate({ params: deviceIdParamSchema }),
   asyncWrapper(deviceController.refreshDirectDeviceLogs)
+);
+
+deviceRoutes.post(
+  "/:id/logs/clear",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.clearDirectDeviceLogs)
+);
+
+deviceRoutes.post(
+  "/:id/time/sync",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.syncDirectDeviceTime)
+);
+
+deviceRoutes.post(
+  "/:id/status/check",
+  validate({ params: deviceIdParamSchema }),
+  asyncWrapper(deviceController.checkDirectDeviceCommandStatus)
 );
 
 // DELETE students from device (removes fingerprints from FK623)

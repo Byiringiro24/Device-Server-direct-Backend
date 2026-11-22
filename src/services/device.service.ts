@@ -233,7 +233,7 @@ const formatDeviceWithStatus = async (record: devices) => {
   const { pin_hash: _pinHash, ...rest } = record;
   const direct = await prisma.fk_wan_devices.findUnique({
     where: { device_uid: record.device_uid },
-    select: { is_online: true, last_seen_at: true, assigned_name: true, device_name: true }
+    select: { is_online: true, last_seen_at: true, assigned_name: true, device_name: true, device_capacity: true, capacity_source: true, device_users_count: true }
   });
   const lastSeenAt = direct?.last_seen_at ?? null;
   const isOnline = Boolean(direct?.is_online);
@@ -247,6 +247,9 @@ const formatDeviceWithStatus = async (record: devices) => {
     is_connected: isOnline,
     last_seen_at: lastSeenAt?.toISOString() ?? null,
     last_sync_at: record.last_sync_at?.toISOString() ?? null,
+    device_capacity: direct?.device_capacity ?? null,
+    capacity_source: direct?.capacity_source ?? "unavailable",
+    device_users_count: direct?.device_users_count ?? record.device_users_count ?? 0,
   };
 };
 
@@ -639,8 +642,10 @@ export const removeStudentsFromDevice = async (
     school_id: toBigInt(schoolId),
     deleted_at: null,
     status: "active",
-    // Only remove students that are actually synced to this device
-    device_sync_status: "synced",
+    // Keep the saved device_user_id as the stable identity used to re-enroll
+    // this student later. Older bridge-managed students may not have a current
+    // device_sync_status even though their biometric ID is already assigned.
+    device_user_id: { not: null },
   };
 
   if (target.mode === "selected") {
@@ -663,7 +668,7 @@ export const removeStudentsFromDevice = async (
     orderBy: { first_name: "asc" }
   });
 
-  if (!students.length) throw new AppError("not_found", "No synced students matched the selected target", 404);
+  if (!students.length) throw new AppError("not_found", "No students with a saved device ID matched the selected target", 404);
 
   await prisma.devices.update({
     where: { id: device.id },
@@ -676,22 +681,36 @@ export const removeStudentsFromDevice = async (
   });
 
   if (directDevice) {
+    if (!directDevice.is_online) throw new AppError("conflict", "The device must be online before removing users", 409);
+    const existingUsers = await fkWanDeviceService.getDeviceUsers(device.device_uid);
+    const requestedIds = students.map(student => String(student.device_user_id)).filter(Boolean);
+    const presentIds = requestedIds.filter(userId => existingUsers.some(user => String(user.userId) === userId));
+    if (!presentIds.length) throw new AppError("not_found", "None of the selected student IDs appear in the latest pulled device users", 404);
+
+    // Secure an encrypted server copy of the selected users' existing
+    // biometric templates before sending any destructive terminal command.
+    await fkWanDeviceService.saveDeviceBiometricBackup(device.device_uid, presentIds);
+
     const removed: Array<{ id: string; user_id: string; name: string }> = [];
-    const failed: Array<{ id: string; user_id: string; name: string; error: string }> = [];
+    const failed: Array<{ id: string; user_id: string; name: string; error: string }> = students
+      .filter(student => !presentIds.includes(String(student.device_user_id)))
+      .map(student => ({ id: student.id.toString(), user_id: String(student.device_user_id), name: `${student.first_name} ${student.last_name}`.trim(), error: "This ID was not present in the latest pulled device list" }));
     for (const student of students) {
       const userId = student.device_user_id;
+      if (!userId || !presentIds.includes(userId)) continue;
       const name = `${student.first_name} ${student.last_name}`.trim();
-      if (!userId) continue;
       try {
         await fkWanDeviceService.deleteDeviceUser(device.device_uid, userId);
         removed.push({ id: student.id.toString(), user_id: userId, name });
+        // Do not clear device_user_id or student_id_number. The same ID remains
+        // available for a future push and biometric restore from the backup.
         await prisma.students.update({ where: { id: student.id }, data: { device_sync_status: null, last_device_sync: new Date() } });
       } catch (error) {
         failed.push({ id: student.id.toString(), user_id: userId, name, error: error instanceof Error ? error.message : "FK WAN command failed" });
       }
     }
-    await prisma.devices.update({ where: { id: device.id }, data: { last_sync_at: new Date(), last_sync_status: failed.length ? "partial" : "synced", last_status_message: `Removed ${removed.length}/${students.length} student(s) over FK WAN` } });
-    return { device_id: device.id.toString(), device_uid: device.device_uid, target, api_url: process.env.FK_DEVICE_SERVER_URL || "http://127.0.0.1:8005", selected_count: students.length, removed_count: removed.length, failed_count: failed.length, students: removed, errors: failed };
+    await prisma.devices.update({ where: { id: device.id }, data: { last_sync_at: new Date(), last_sync_status: failed.length ? "partial" : "synced", last_status_message: `Verified removal of ${removed.length}/${presentIds.length} selected user(s)` } });
+    return { device_id: device.id.toString(), target, selected_count: students.length, matched_count: presentIds.length, removed_count: removed.length, failed_count: failed.length, students: removed, errors: failed, studentIdsPreserved: true, biometricBackupCreated: true };
   }
 
   throw new AppError("internal_error", "Direct FK WAN user removal did not complete", 500);
@@ -715,15 +734,38 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
 
   const wanRecord = await prisma.fk_wan_devices.findUnique({ where: { device_uid: device.device_uid } });
   if (wanRecord?.school_id === toBigInt(schoolId)) {
+    let physicalUsers: Array<{ userId: string }> | null = null;
+    try {
+      physicalUsers = await fkWanDeviceService.getDeviceUsers(device.device_uid);
+    } catch {
+      // Preserve the last reported terminal count if its cached user list is unavailable.
+    }
+    const physicalIds = physicalUsers ? [...new Set(physicalUsers.map(user => String(user.userId)).filter(Boolean))] : [];
+    const studentMatches = physicalIds.length ? await prisma.students.findMany({
+      where: { school_id: toBigInt(schoolId), device_user_id: { in: physicalIds }, deleted_at: null, status: "active" },
+      select: { id: true, device_user_id: true, student_type: true },
+    }) : [];
+    const byDeviceUserId = new Map<string, typeof studentMatches>();
+    for (const student of studentMatches) {
+      const key = String(student.device_user_id ?? "");
+      byDeviceUserId.set(key, [...(byDeviceUserId.get(key) ?? []), student]);
+    }
+    const matchedStudents = [...byDeviceUserId.values()].filter(matches => matches.length === 1).map(matches => matches[0]);
+    const boardingStudents = matchedStudents.filter(student => String(student.student_type).toLowerCase() === "boarding");
+    const actualUserCount = physicalUsers?.length ?? wanRecord.device_users_count;
     const updated = await prisma.devices.update({
       where: { id: device.id },
       data: {
         is_connected: wanRecord.is_online,
+        device_users_count: actualUserCount,
         ...(wanRecord.last_seen_at ? { last_seen_at: wanRecord.last_seen_at, last_connection_at: wanRecord.last_seen_at } : {}),
         last_sync_status: wanRecord.is_online ? "online" : "offline",
-        last_status_message: wanRecord.is_online ? "FK terminal connected directly by WAN" : "FK terminal has not polled recently",
+        last_status_message: wanRecord.is_online ? "Device is online" : "Device is offline",
       },
     });
+    if (physicalUsers) {
+      await prisma.fk_wan_devices.update({ where: { device_uid: device.device_uid }, data: { device_users_count: actualUserCount } });
+    }
     return {
       ...await formatDeviceWithStatus(updated),
       status: wanRecord.is_online ? "online" : "offline",
@@ -733,6 +775,14 @@ export const getDeviceStatus = async (schoolId: string | number | bigint, id: st
       fk623_connected: wanRecord.is_online,
       last_seen_at: wanRecord.last_seen_at?.toISOString() ?? null,
       device_status: { connected: wanRecord.is_online, serialNumber: wanRecord.device_uid, productName: wanRecord.device_name, firmware: wanRecord.firmware_version },
+      device_capacity: wanRecord.device_capacity,
+      capacity_source: wanRecord.capacity_source,
+      device_users_count: actualUserCount,
+      assigned_students: matchedStudents.length,
+      boarding_students: boardingStudents.length,
+      day_students: matchedStudents.length - boardingStudents.length,
+      assigned_student_ids: matchedStudents.map(student => student.id.toString()),
+      last_status_message: wanRecord.is_online ? "Device is online" : "Device is offline",
     };
   }
 
@@ -755,7 +805,7 @@ export const getAllDeviceStatuses = async (schoolId: string | number | bigint) =
       serialNumber: record.device_uid,
       isConnected: record.is_online,
       lastConnectionAt: record.last_seen_at?.toISOString() ?? undefined,
-      connectionError: record.is_online ? undefined : "No recent WAN poll from terminal",
+      connectionError: record.is_online ? undefined : "Device has not connected recently",
     }));
 };
 
@@ -775,6 +825,8 @@ export const getLiveDeviceStatuses = async (
   users: number;
   logs: number;
   last_status_message: string | null;
+  capacity: number | null;
+  capacity_source: string;
 }>> => {
   const records = await fkWanDeviceService.syncDiscoveredDevices();
   const assigned = records.filter(record => record.school_id === toBigInt(schoolId));
@@ -788,9 +840,11 @@ export const getLiveDeviceStatuses = async (
       is_online: record.is_online,
       is_connected: record.is_online,
       fk623_connected: record.is_online,
-      users: 0,
+      users: record.device_users_count,
       logs: 0,
-      last_status_message: record.is_online ? "FK terminal connected directly by WAN" : "FK terminal has not polled recently",
+      last_status_message: record.is_online ? "Device is online" : "Device is offline",
+      capacity: record.device_capacity,
+      capacity_source: record.capacity_source,
       last_seen_at: record.last_seen_at?.toISOString() ?? null,
     };
   }));
@@ -809,7 +863,99 @@ async function findAssignedDirectDevice(schoolId: string | number | bigint, id: 
 
 export const getDirectDeviceUsers = async (schoolId: string | number | bigint, id: string) => {
   const { device } = await findAssignedDirectDevice(schoolId, id);
-  return fkWanDeviceService.getDeviceUsers(device.device_uid);
+  const users = await fkWanDeviceService.getDeviceUsers(device.device_uid);
+  const ids = [...new Set(users.map(user => String(user.userId)))];
+  const students = ids.length ? await prisma.students.findMany({
+    where: { school_id: toBigInt(schoolId), device_user_id: { in: ids }, deleted_at: null },
+    select: { id: true, device_user_id: true, student_id_number: true, first_name: true, last_name: true },
+  }) : [];
+  const byDeviceId = new Map<string, typeof students>();
+  for (const student of students) {
+    const key = String(student.device_user_id);
+    byDeviceId.set(key, [...(byDeviceId.get(key) ?? []), student]);
+  }
+  return users.map(user => {
+    const matches = byDeviceId.get(String(user.userId)) ?? [];
+    const matched = matches.length === 1 ? matches[0] : null;
+    return {
+      ...user,
+      studentId: matched?.id.toString() ?? null,
+      studentNumber: matched?.student_id_number ?? null,
+      studentName: matched ? `${matched.first_name} ${matched.last_name}`.trim() : null,
+      matchStatus: matches.length > 1 ? "ambiguous" : matched ? "matched" : "unmatched",
+    };
+  });
+};
+
+export const deleteDirectDeviceUsers = async (
+  schoolId: string | number | bigint,
+  id: string,
+  input: { userIds?: string[]; all?: boolean },
+) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const registry = await prisma.fk_wan_devices.findUnique({ where: { device_uid: device.device_uid } });
+  if (!registry?.is_online) throw new AppError("conflict", "The device must be online before removing users", 409);
+  const liveUsers = await fkWanDeviceService.getDeviceUsers(device.device_uid);
+  const requested = input.all ? liveUsers.map(user => String(user.userId)) : [...new Set((input.userIds ?? []).map(value => String(value).trim()).filter(Boolean))];
+  if (!requested.length) throw new AppError("bad_request", "Select at least one current device user", 400);
+  const presentIds = requested.filter(userId => liveUsers.some(user => String(user.userId) === userId));
+  if (presentIds.length !== requested.length) throw new AppError("conflict", "One or more selected IDs are no longer in the latest device user list. Pull users and review the list again.", 409);
+
+  const backup = await fkWanDeviceService.saveDeviceBiometricBackup(device.device_uid, presentIds);
+  if (!backup.available) throw new AppError("conflict", "A device user backup was not created; the device was not changed", 409);
+  const removed: string[] = [];
+  const errors: Array<{ userId: string; error: string }> = [];
+  for (const userId of presentIds) {
+    try {
+      const result = await fkWanDeviceService.deleteDeviceUser(device.device_uid, userId);
+      if (!result.verifiedRemoved) throw new Error("The device removal could not be verified");
+      removed.push(userId);
+    } catch (error) {
+      errors.push({ userId, error: error instanceof Error ? error.message : "Device rejected or did not verify removal" });
+    }
+  }
+  const linked = await prisma.students.findMany({
+    where: { school_id: toBigInt(schoolId), device_user_id: { in: removed }, deleted_at: null },
+    select: { id: true },
+  });
+  if (linked.length) await prisma.students.updateMany({ where: { id: { in: linked.map(student => student.id) } }, data: { device_sync_status: null, last_device_sync: new Date() } });
+  return { requested_count: requested.length, removed_count: removed.length, failed_count: errors.length, removed_user_ids: removed, errors, biometric_backup_created: true, student_device_ids_preserved: true };
+};
+
+export const getDirectDeviceUserMatchCandidates = async (schoolId: string | number | bigint, id: string) => {
+  await findAssignedDirectDevice(schoolId, id);
+  return prisma.students.findMany({
+    where: { school_id: toBigInt(schoolId), device_user_id: null, deleted_at: null, status: "active" },
+    select: { id: true, student_id_number: true, first_name: true, last_name: true },
+    orderBy: [{ first_name: "asc" }, { last_name: "asc" }],
+  }).then(rows => rows.map(student => ({ ...student, id: student.id.toString() })));
+};
+
+export const matchDirectDeviceUserToStudent = async (schoolId: string | number | bigint, id: string, input: { userId: string; studentId: string }) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const userId = String(input.userId ?? "").trim();
+  if (!userId || !/^\d+$/.test(input.studentId)) throw new AppError("bad_request", "Select a device user and a student", 400);
+  const deviceUsers = await fkWanDeviceService.getDeviceUsers(device.device_uid);
+  if (!deviceUsers.some(user => String(user.userId) === userId)) {
+    throw new AppError("conflict", "That user ID is not in the latest pulled device list. Pull users, wait for the device, and try again.", 409);
+  }
+  return prisma.$transaction(async tx => {
+    const student = await tx.students.findFirst({
+      where: { id: toBigInt(input.studentId), school_id: toBigInt(schoolId), deleted_at: null, status: "active" },
+      select: { id: true, device_user_id: true },
+    });
+    if (!student) throw new AppError("not_found", "Student was not found in this school", 404);
+    if (student.device_user_id && student.device_user_id !== userId) {
+      throw new AppError("conflict", "This student already has a device ID. It was left unchanged; resolve the existing match first.", 409);
+    }
+    const existing = await tx.students.findFirst({
+      where: { school_id: toBigInt(schoolId), device_user_id: userId, id: { not: student.id } },
+      select: { id: true },
+    });
+    if (existing) throw new AppError("conflict", "That device ID is already linked to another student", 409);
+    await tx.students.update({ where: { id: student.id }, data: { device_user_id: userId } });
+    return { studentId: student.id.toString(), deviceUserId: userId, studentNumberChanged: false };
+  });
 };
 
 export const refreshDirectDeviceUsers = async (schoolId: string | number | bigint, id: string) => {
@@ -824,6 +970,22 @@ export const refreshDirectDeviceLogs = async (schoolId: string | number | bigint
   const queued = await fkWanDeviceService.queueFullAttendancePull(device.device_uid);
   await prisma.fk_wan_devices.update({ where: { device_uid: device.device_uid }, data: { last_logs_pull_at: new Date() } });
   return { device_uid: device.device_uid, ...queued };
+};
+
+export const syncDirectDeviceTime = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  return fkWanDeviceService.syncDeviceTime(device.device_uid);
+};
+
+export const checkDirectDeviceCommandStatus = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  return fkWanDeviceService.checkDeviceStatus(device.device_uid);
+};
+
+export const clearDirectDeviceLogs = async (schoolId: string | number | bigint, id: string) => {
+  const { device } = await findAssignedDirectDevice(schoolId, id);
+  const result = await fkWanDeviceService.clearDeviceLogs(device.device_uid);
+  return { ...result, serverAttendancePreserved: true };
 };
 
 export const getDeviceAttendanceConfig = async (schoolId: string | number | bigint, id: string) => {
@@ -1122,7 +1284,7 @@ export const recordDeviceAttendanceEvent = async (
     } catch { /* non-fatal */ }
   }
 
-  if (student?.id && isAttendanceScheduled(attendanceStatus)) {
+  if (student?.id && attendance.session?.send_sms === true && isAttendanceScheduled(attendanceStatus)) {
     const sourceType =
       device.mode === "boarding"
         ? "dormitory_device"
@@ -1161,6 +1323,7 @@ export const recordDeviceAttendanceEvent = async (
         studentId: student.id,
         kind: notificationKind,
         occurredAt: created.timestamp,
+        templateId: attendance.session.notification_template_id,
         sourceType,
         scopeKey: id,
         context: {
@@ -1206,7 +1369,6 @@ export const listDeviceLogs = async (
     throw new AppError("not_found", "Device not found", 404);
   }
 
-  // Validate attendance_status filter
   if (filters?.attendance_status) {
     const validStatuses = ["present", "late", "absent", "not_scheduled"];
     if (!validStatuses.includes(filters.attendance_status)) {
@@ -1216,6 +1378,35 @@ export const listDeviceLogs = async (
         400
       );
     }
+  }
+
+  const directRegistry = await prisma.fk_wan_devices.findUnique({ where: { device_uid: device.device_uid }, select: { device_uid: true, school_id: true } });
+  if (directRegistry?.school_id === toBigInt(schoolId)) {
+    const where: Prisma.attendance_logsWhereInput = {
+      school_id: toBigInt(schoolId),
+      device_id: { in: [device.id.toString(), directRegistry.device_uid] },
+    };
+    if (filters?.session_name) where.attendance_period = filters.session_name;
+    if (filters?.attendance_status) where.status = { equals: filters.attendance_status, mode: "insensitive" };
+    const [items, total] = await prisma.$transaction([
+      prisma.attendance_logs.findMany({ where, orderBy: { timestamp: "desc" }, skip: (pagination.page - 1) * pagination.limit, take: pagination.limit }),
+      prisma.attendance_logs.count({ where }),
+    ]);
+    return {
+      data: items.map(item => {
+        const [first_name, ...lastParts] = String(item.student_name ?? "").split(/\s+/).filter(Boolean);
+        return {
+          id: item.id.toString(), device_id: device.id.toString(),
+          student_id: item.user_id, event_type: item.direction === "exit" ? "Exit" : "Attendance",
+          scan_method: item.authentication_method, scanned_at: item.timestamp.toISOString(),
+          session_name: item.attendance_period, status_label: item.status, attendance_status: item.status,
+          is_flagged: item.is_flagged, synced_at: item.synced_at?.toISOString() ?? null,
+          first_name: first_name ?? null, last_name: lastParts.join(" ") || null,
+          student_id_number: item.student_id,
+        };
+      }),
+      meta: { page: pagination.page, limit: pagination.limit, total },
+    };
   }
 
   const { page, limit } = pagination;
