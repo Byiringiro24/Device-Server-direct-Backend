@@ -65,6 +65,14 @@ hardwareRoutes.patch(
   validate(fkWanDeviceAssignmentSchema),
   asyncWrapper(fkWanDeviceController.assignDevice)
 );
+hardwareRoutes.patch(
+  "/direct-devices/:deviceUid/name",
+  validate({
+    params: z.object({ deviceUid: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) }),
+    body: z.object({ assigned_name: z.string().trim().min(1).max(100) }),
+  }),
+  asyncWrapper(fkWanDeviceController.renameDevice)
+);
 
 hardwareRoutes.get("/devices", asyncWrapper(hardwareController.listDevices));
 hardwareRoutes.post("/devices", validate(platformDeviceSchema), asyncWrapper(hardwareController.createDevice));

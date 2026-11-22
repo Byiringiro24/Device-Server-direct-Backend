@@ -240,6 +240,33 @@ export async function assignDeviceToSchool(input: {
   return result;
 }
 
+export async function renameDiscoveredDevice(deviceUid: string, assignedName: string, assignedBy: string) {
+  if (!deviceIdOk(deviceUid)) throw new AppError("bad_request", "Invalid FK device ID", 400);
+  const name = assignedName.trim();
+  if (!name || name.length > 100) throw new AppError("bad_request", "Device name must be 1 to 100 characters", 400);
+  if (!/^\d+$/.test(assignedBy)) throw new AppError("unauthorized", "Invalid platform user context", 401);
+
+  const current = await prisma.fk_wan_devices.findUnique({ where: { device_uid: deviceUid } });
+  if (!current) throw new AppError("not_found", "Device has not been discovered by the WAN server yet", 404);
+
+  const registry = await prisma.fk_wan_devices.update({
+    where: { device_uid: deviceUid },
+    data: {
+      assigned_name: name,
+      assigned_by_platform_user_id: BigInt(assignedBy),
+      updated_at: new Date(),
+    },
+    include: { school: { select: { id: true, name: true } } },
+  });
+
+  // Keep the school's device-facing label in sync when this terminal has
+  // already been assigned. Unassigned discoveries remain only in the registry.
+  if (current.school_id !== null) {
+    await prisma.devices.updateMany({ where: { device_uid: deviceUid }, data: { name, updated_at: new Date() } });
+  }
+  return registry;
+}
+
 export async function getAttendanceFromDeviceServer(limit = 5000) {
   return serverRequest<Array<{ deviceId: string; receivedAt?: string; userName?: string | null; payload?: Record<string, unknown> }>>(
     `/api/attendance?limit=${Math.max(1, Math.min(limit, 100000))}`

@@ -34,3 +34,16 @@ export async function assignDevice(req: Request, res: Response) {
   });
   res.json(successResponse(result));
 }
+
+export async function renameDevice(req: Request, res: Response) {
+  const assignedBy = req.user?.id;
+  if (assignedBy === undefined || assignedBy === null) {
+    throw new AppError("unauthorized", "Missing platform user context", 401);
+  }
+  const result = await fkWanDeviceService.renameDiscoveredDevice(
+    req.params.deviceUid,
+    String(req.body.assigned_name ?? ""),
+    String(assignedBy),
+  );
+  res.json(successResponse(result));
+}
